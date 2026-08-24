@@ -83,13 +83,16 @@ Use this mode whenever the user asks for a Canvas to Notion update. Its purpose 
 
 ### Sources and verification order
 
-1. Inspect **NUS Journey > Task Tracker** in Notion, including every current task's subject, title, date, and page body.
-2. Inspect the **NUS Exams** Google Calendar for existing one-time examination events when calendar access is available.
-3. Read `raw/logs/latest.json` for the Canvas run timestamp, course scope, collection completeness, and full warnings.
-4. Read `raw/INDEX.md` for the corpus overview and assignment dates.
-5. Read each in-scope `raw/<COURSE>/documents.jsonl` as the canonical normalized Canvas record stream.
-6. Use `raw/<COURSE>/content/`, `raw/<COURSE>/content/text/files/`, and `file-manifest.json` when task instructions or attachment text are needed.
-7. Use raw records only to resolve an ambiguity; do not use `raw/` as the default source.
+1. Inspect every in-scope module page in **NUS Journey > Module Planning** and read its **Canvas to Notion** section. Treat those notes as durable course-specific instructions for matching, ignored records, warning interpretation, and task behavior.
+2. Inspect **NUS Journey > Task Tracker** in Notion, including every current task's module relation, title, date, and page body.
+3. Inspect the **NUS Exams** Google Calendar for existing one-time examination events when calendar access is available and the user has not asked to omit calendar work.
+4. Read `raw/logs/latest.json` for the Canvas run timestamp, course scope, collection completeness, and full warnings.
+5. Read `raw/INDEX.md` for the corpus overview and assignment dates.
+6. Read each in-scope `raw/<COURSE>/documents.jsonl` as the canonical normalized Canvas record stream.
+7. Use `raw/<COURSE>/content/`, `raw/<COURSE>/content/text/files/`, and `file-manifest.json` when task instructions or attachment text are needed.
+8. Use raw records only to resolve an ambiguity; do not use `raw/` as the default source.
+
+Store new course-specific Mode B decisions on the applicable module page under **Canvas to Notion**, not in this file. Keep this file limited to the general workflow that ensures those notes are always read and followed.
 
 If the user explicitly requests a fresh Canvas update, perform the authorized read-only refresh first, review its warnings, and then use the completed archive as the comparison source.
 
@@ -103,6 +106,14 @@ Perform all of the following checks every time, even when the user asks generall
 4. **Exam completeness:** compare important one-time, high-weight examinations against **NUS Exams**. Keep confirmed exams in Google Calendar rather than creating duplicate Notion tasks. Report missing, conflicting, or unconfirmed exam events.
 
 Match records using stable Canvas identifiers or source URLs when available. Use title, subject, and date only as supporting evidence; never assume a title-only match is reliable.
+
+Task completeness must inspect normalized `assignment` and `quiz` records and then inspect module, page, announcement, and syllabus records for corroborating evidence. Do not limit the audit to assignments. A dated mention in prose, a syllabus schedule, an external module link, or an archived module item is evidence to investigate, not by itself a current task to report or create. Promote such a reference to a current task only when a dedicated live Canvas assignment or quiz record, a current explicit announcement, or user confirmation establishes that it is active. Otherwise classify it as unverified reference or planning content and omit it from Mode B missing-task warnings.
+
+Do not infer student visibility from a module or module-item `published` field alone. Cross-check it against any dedicated assignment or quiz record and `content_details`; if the flags are internally inconsistent, report the field as unreliable rather than declaring the content published or unpublished. Always verify the Notion module relation before accepting a title match, especially for repeated names such as tutorials, quizzes, lectures, and diagnostics.
+
+When Canvas converts or replaces a record, apply any conversion rule recorded in the module's **Canvas to Notion** section before reporting a missing task, duplicate, extra, or removal. Preserve the existing Notion task when the course-specific rule says the new Canvas record is the continuation of it.
+
+Inspect new and modified announcements for task-relevant changes. Add useful announcement details and source links to the corresponding existing task page after verifying the stable Canvas identifier or source URL and the Notion module relation. Do not attach an announcement to a task using title alone.
 
 ### Writing task-page information
 
@@ -123,17 +134,22 @@ Match records using stable Canvas identifiers or source URLs when available. Use
 - Read warning messages themselves rather than relying on warning counts.
 - A warning may represent an unused feature, access control, or unreleased content. Do not infer that a task is absent or deleted when relevant Canvas coverage is incomplete.
 - Report uncertainty whenever warnings, gated content, missing download URLs, or ambiguous Notion matches prevent a reliable conclusion.
+- Apply the warning interpretations recorded in each module page's **Canvas to Notion** section before producing the Mode B report. Expected unused Canvas features, unreleased files, and intentionally gated content must not be repeated as warnings when the module notes classify them as normal.
+- If a raw warning omits the affected identifier or filename, resolve it from module references, known identifiers, file manifests, and preserved local files before reporting it. If it still cannot be resolved, say that the raw warning lacks the identifier rather than guessing.
+- If calendar access is unavailable or the user has asked to omit calendar work, skip it without treating that as a Mode B warning or incomplete Canvas/Notion coverage.
 
 ### Completion report
 
-After every Canvas to Notion update, tell the user:
+Use the following structure after every Canvas to Notion update:
 
-- the Canvas run timestamp and subjects checked;
-- every Notion date property changed, plus every unresolved date the user still needs to review; if date writes were not authorized, explicitly confirm that no dates were modified;
-- every missing, uncertain, duplicate, or extra task found by subject;
-- roughly what information was added to existing task pages;
-- each existing block that was corrected, identifying the task and what changed;
-- anything created or otherwise updated in Notion outside additive page-body content, which should normally be nothing unless separately authorized;
-- every **NUS Exams** event created, updated, already correct, missing, or left unchanged because its source was uncertain;
-- the full relevant Canvas warnings and any items that could not be verified;
-- confirmation that nothing was deleted, including from Notion or Google Calendar.
+1. Begin with one or two short prose sentences containing the Canvas run timestamp and subjects checked. Do not put either item in a list.
+2. Add a short core-updates list containing only material findings or actions, such as newly released content added to a task page or a meaningful Canvas change that required verification. Omit routine audit confirmations from this list.
+3. Add a **Still requiring review** list. Preserve this heading and list every unresolved date, uncertain item, relevant persistent warning, or other issue that needs the user's attention. Include intentionally retained warnings, such as stale source records that must continue to be monitored, in this list rather than in a separate warning paragraph.
+4. Add a separate **Audit summary** list for routine confirmations, grouping together:
+   - every missing, uncertain, duplicate, or extra task found by subject, or confirmation that none were found;
+   - every Notion date property changed, or confirmation that no dates were modified when date writes were not authorized;
+   - each existing block corrected, or confirmation that none were corrected;
+   - anything created or otherwise updated in Notion outside additive page-body content;
+   - confirmation that nothing was deleted.
+
+The report must still cover roughly what information was added to existing task pages, every relevant Canvas warning or item that could not be verified, and any authorized **NUS Exams** work. If calendar work was unavailable or intentionally omitted, do not present that omission as a warning.
