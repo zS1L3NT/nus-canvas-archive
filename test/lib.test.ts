@@ -10,6 +10,7 @@ import {
   htmlToMarkdown,
   orderPrefix,
   preserveIncompleteState,
+  rebaseMarkdownImages,
   safeName,
   stateFromDocuments,
 } from "../src/lib.ts";
@@ -18,6 +19,26 @@ test("HTML normalization preserves useful text and links", () => {
   assert.equal(
     htmlToMarkdown('<h2>Hello</h2><p>See <a href="https://example.com">resource</a>.</p>'),
     "## Hello\n\nSee [resource](https://example.com).\n",
+  );
+});
+
+test("HTML normalization preserves Canvas images with sanitized verifier URLs", () => {
+  const html =
+    '<p><img src="https://canvas.nus.edu.sg/courses/94257/files/9680978/preview?verifier=<redacted>" alt="image.png" width="662" height="179" data-api-endpoint="https://canvas.nus.edu.sg/api/v1/courses/94257/files/9680978" data-api-returntype="File"></p>';
+  assert.equal(
+    htmlToMarkdown(html, (fileId) => `../files/${fileId}/downloaded image.png`),
+    "![image.png](../files/9680978/downloaded%20image.png)\n",
+  );
+});
+
+test("copied Markdown images are rebased to their raw archive targets", () => {
+  assert.equal(
+    rebaseMarkdownImages(
+      "![diagram](<../files/42/diagram image.png>)\n",
+      "/archive/raw/COURSE/content/pages",
+      "/archive/view/COURSE/Modules/Week 1",
+    ),
+    "![diagram](<../../../../raw/COURSE/content/files/42/diagram image.png>)\n",
   );
 });
 

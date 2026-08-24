@@ -27,6 +27,7 @@ import {
   orderPrefix,
   preserveIncompleteState,
   readJson,
+  rebaseMarkdownImages,
   safeName,
   sha256File,
   stableJson,
@@ -364,7 +365,10 @@ function moduleViewFilename(name: string, source: ViewSource | null): string {
 async function copyViewFile(destination: string, source: string): Promise<void> {
   await mkdir(path.dirname(destination), { recursive: true });
   try {
-    await copyFile(source, destination);
+    if (/\.md$/i.test(source)) {
+      const markdown = await readFile(source, "utf8");
+      await atomicWrite(destination, rebaseMarkdownImages(markdown, path.dirname(source), path.dirname(destination)));
+    } else await copyFile(source, destination);
   } catch (error) {
     if (!hasErrorCode(error, "ENOENT")) throw error;
   }
@@ -805,6 +809,13 @@ async function buildDocuments(
 ): Promise<ArchiveDocument[]> {
   const code = data.configuredCourse.code;
   const documents: ArchiveDocument[] = [];
+  const filesById = new Map(fileEntries.map((file) => [Number(file.canvas_id), file]));
+  const markdown = (html: unknown, localPath?: string): string =>
+    htmlToMarkdown(html, (fileId, source) => {
+      const file = fileId === null ? undefined : filesById.get(fileId);
+      if (!file) return source;
+      return localPath ? path.posix.relative(path.posix.dirname(localPath), file.local_path) : file.local_path;
+    });
   documents.push(
     documentRecord({
       id: data.course.id,
@@ -817,12 +828,12 @@ async function buildDocuments(
         course_code: data.course.course_code,
         default_view: data.course.default_view,
       },
-      content: htmlToMarkdown(data.course.syllabus_body || ""),
+      content: markdown(data.course.syllabus_body || ""),
     }),
   );
   for (const page of data.pages) {
-    const content = htmlToMarkdown(page.body || "");
     const localPath = path.posix.join("content/pages", `${page.page_id || safeName(page.url)}.md`);
+    const content = markdown(page.body || "", localPath);
     await atomicWrite(path.join(courseDirectory, localPath), `# ${page.title}\n\n${content}`);
     documents.push(
       documentRecord({
@@ -839,9 +850,9 @@ async function buildDocuments(
     );
   }
   for (const assignment of data.assignments) {
-    const content = htmlToMarkdown(assignment.description || "");
     const dates = assignmentDates(assignment, data.assignmentOverrides[assignment.id]);
     const localPath = path.posix.join("content/assignments", `${assignment.id}.md`);
+    const content = markdown(assignment.description || "", localPath);
     const dateLines = dates.map((date) => `- ${date.audience}: ${date.due_at || "no due date"}`).join("\n");
     await atomicWrite(
       path.join(courseDirectory, localPath),
@@ -871,8 +882,8 @@ async function buildDocuments(
     (left, right) => new Date(left.posted_at || 0).getTime() - new Date(right.posted_at || 0).getTime(),
   );
   for (const announcement of sortedAnnouncements) {
-    const content = htmlToMarkdown(announcement.message || "");
     const localPath = path.posix.join("content/announcements", `${announcement.id}.md`);
+    const content = markdown(announcement.message || "", localPath);
     await atomicWrite(path.join(courseDirectory, localPath), `# ${announcement.title}\n\n${content}`);
     documents.push(
       documentRecord({
@@ -909,7 +920,7 @@ async function buildDocuments(
   }
   for (const quiz of data.quizzes) {
     const localPath = path.posix.join("content/quizzes", `${quiz.id}.md`);
-    const content = htmlToMarkdown(quiz.description || "");
+    const content = markdown(quiz.description || "", localPath);
     const dateLines = [
       quiz.due_at ? `- Due: ${quiz.due_at}` : "",
       quiz.unlock_at ? `- Opens: ${quiz.unlock_at}` : "",
@@ -956,7 +967,7 @@ async function buildDocuments(
           location_name: event.location_name,
           context_code: event.context_code,
         },
-        content: htmlToMarkdown(event.description || ""),
+        content: markdown(event.description || ""),
       }),
     );
   }

@@ -78,10 +78,34 @@ export function decodeHtml(value: unknown = ""): string {
   });
 }
 
-export function htmlToMarkdown(html: unknown = ""): string {
+type ImageSource = (fileId: number | null, source: string) => string;
+
+function htmlAttribute(tag: string, name: string): string {
+  const match = tag.match(new RegExp(`(?:^|\\s)${name}\\s*=\\s*(["'])([\\s\\S]*?)\\1`, "i"));
+  return decodeHtml(match?.[2] ?? "").trim();
+}
+
+function imageMarkdown(tag: string, imageSource?: ImageSource): string {
+  const source = htmlAttribute(tag, "src");
+  const endpoint = htmlAttribute(tag, "data-api-endpoint");
+  const fileId = endpoint.match(/\/files\/(\d+)/)?.[1] ?? source.match(/\/files\/(\d+)/)?.[1];
+  const resolved = imageSource?.(fileId ? Number(fileId) : null, source) || source;
+  if (!resolved) return htmlAttribute(tag, "alt");
+  const cleanSource = resolved.replace(/([?&](?:verifier|access_token)=)(?:<redacted>|%3Credacted%3E)(&|$)/gi, "$2");
+  const alt = htmlAttribute(tag, "alt").replaceAll("]", "\\]");
+  const destination = cleanSource
+    .replaceAll(" ", "%20")
+    .replaceAll("(", "%28")
+    .replaceAll(")", "%29")
+    .replaceAll(">", "%3E");
+  return `![${alt}](${destination})`;
+}
+
+export function htmlToMarkdown(html: unknown = "", imageSource?: ImageSource): string {
   let text = String(html ?? "")
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<img\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi, (tag) => imageMarkdown(tag, imageSource))
     .replace(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_match, href, label) => {
       const cleanLabel = decodeHtml(label.replace(/<[^>]+>/g, "")).trim() || href;
       return `[${cleanLabel}](${href})`;
@@ -100,6 +124,24 @@ export function htmlToMarkdown(html: unknown = ""): string {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
   return text ? `${text}\n` : "";
+}
+
+export function rebaseMarkdownImages(markdown: string, sourceDirectory: string, destinationDirectory: string): string {
+  return markdown.replace(/(!\[[^\]]*\]\()(?:<([^>]+)>|([^\s)]+))(\))/g, (match, prefix, wrapped, bare, suffix) => {
+    const target = wrapped || bare;
+    if (!target || /^(?:[a-z][a-z\d+.-]*:|[/#])/i.test(target)) return match;
+    let decoded = target;
+    try {
+      decoded = decodeURIComponent(target);
+    } catch {
+      /* Preserve malformed URL escapes as literal path characters. */
+    }
+    const rebased = path
+      .relative(destinationDirectory, path.resolve(sourceDirectory, decoded))
+      .split(path.sep)
+      .join("/");
+    return `${prefix}<${rebased || "."}>${suffix}`;
+  });
 }
 
 function xmlText(xml: string, tagPattern: RegExp): string {

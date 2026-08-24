@@ -23,4 +23,4 @@ export {
   stableValue,
   writeJson,
 } from "./lib/serialization.ts";
-export { decodeHtml, extractText, htmlToMarkdown } from "./lib/text.ts";
+export { decodeHtml, extractText, htmlToMarkdown, rebaseMarkdownImages } from "./lib/text.ts";
