@@ -69,11 +69,14 @@ Use this mode whenever the user asks for a Canvas to Notion update. Its purpose 
 ### Operating boundary
 
 - Treat Canvas and this repository as read-only sources.
-- Treat Notion as read-mostly. The standing write permission is limited to adding important Canvas information inside the body of an existing task page.
+- Treat Notion as read-mostly. The standing write permission covers the full body of an existing task page: add, rewrite, reorganize, or remove blocks as needed so the page is a clean, current reference for that module, tutorial, quiz, or assignment rather than a chronological update log.
+- Treat every subpage nested within a Task Tracker page as the user's private handwritten notes. Do not open, search, read, edit, move, or delete these subpages or any of their contents. This restriction does not limit maintenance of the parent task page body.
 - Do not change a Notion task date or other database property unless the user explicitly authorizes that property write for the current update. When authorized, write only dates confirmed by reliable Canvas course material and report every property changed.
 - Do not create a missing task or alter database properties unless the user gives explicit permission for that specific action.
-- Avoid changing existing page blocks. Change a block only to correct information that is demonstrably wrong, and report exactly what was corrected.
-- Never delete a Notion page, block, property, or other content without the user's explicit approval. Absence from Canvas, a partial run, or a warning is never deletion approval.
+- Do not preserve superseded Canvas instructions merely as history. Replace or remove stale, duplicated, or contradicted task-page blocks when reliable current course material establishes the up-to-date content.
+- Preserve user-authored personal notes and planning content unless they are plainly obsolete instructions copied from Canvas. If provenance or current accuracy is uncertain, leave the content in place and report it instead of removing it.
+- Never delete a Notion page, database property, or content outside the body of a matched existing task page without the user's explicit approval. Absence from Canvas, a partial run, or a warning is never deletion approval.
+- Deleted or archived Notion pages are entirely out of scope. Never fetch or inspect their bodies, compare their properties, follow their links, count them as current tasks, classify them as duplicates or extras, or mention them in Mode B reports. If a tool indicates that a page is deleted or archived, stop processing it immediately and do not unarchive it.
 - Never write back to Canvas.
 - Google Calendar access is limited to the calendar named **NUS Exams** and to important, one-time, high-weight examinations. Inspect it on every full update when calendar access is available.
 - Create or update an **NUS Exams** event only when the user has authorized calendar writes and the date and time are confirmed by reliable course material. Never create an event from a TBA, ambiguous, internally inconsistent, or stale source.
@@ -84,7 +87,7 @@ Use this mode whenever the user asks for a Canvas to Notion update. Its purpose 
 ### Sources and verification order
 
 1. Inspect every in-scope module page in **NUS Journey > Module Planning** and read its **Canvas to Notion** section. Treat those notes as durable course-specific instructions for matching, ignored records, warning interpretation, and task behavior.
-2. Inspect **NUS Journey > Task Tracker** in Notion, including every current task's module relation, title, date, and page body.
+2. Enumerate only current, non-archived pages in **NUS Journey > Task Tracker**, preferably through a current database view or a query that explicitly excludes archived rows. Inspect every such task's module relation, title, date, and page body. Do not use module-relation targets as proof that a page is current: relations may retain references to deleted pages. If complete current-page enumeration is unavailable, limit the stated coverage instead of opening relation targets that may be deleted.
 3. Inspect the **NUS Exams** Google Calendar for existing one-time examination events when calendar access is available and the user has not asked to omit calendar work.
 4. Read `raw/logs/latest.json` for the Canvas run timestamp, course scope, collection completeness, and full warnings.
 5. Read `raw/INDEX.md` for the corpus overview and assignment dates.
@@ -101,8 +104,8 @@ If the user explicitly requests a fresh Canvas update, perform the authorized re
 Perform all of the following checks every time, even when the user asks generally for an "update":
 
 1. **Date accuracy:** compare every current Notion task date with the applicable Canvas availability and due dates, including relevant student-specific overrides. Unless the user has authorized date writes for the current update, list every discrepancy without editing it. When date writes are authorized, update only confirmed dates and report what remains uncertain.
-2. **Task completeness:** for each subject in scope, compare Canvas tasks against Task Tracker and identify every missing Notion task. Also flag uncertain matches, duplicates, or apparent extras separately; do not resolve them by writing or deleting.
-3. **Page information:** inspect each matched task page and add important missing information from Canvas to the page body. Useful information includes submission requirements, instructions, grading or rubric details, availability restrictions, required links, attachment summaries, and material changes that affect completing the task.
+2. **Task completeness:** for each subject in scope, compare Canvas tasks against current, non-archived Task Tracker pages and identify every missing Notion task. Also flag uncertain matches, duplicates, or apparent extras among current pages separately; do not resolve them by creating tasks, changing database properties, or deleting pages. Ignore deleted or archived Notion pages completely, even when a surviving relation still references them.
+3. **Page information:** inspect each matched task page and maintain its body as a concise, self-contained statement of the latest reliable Canvas information. Add missing details, rewrite outdated instructions, consolidate duplicates, and remove superseded Canvas-derived content. Useful information includes submission requirements, instructions, grading or rubric details, availability restrictions, required links, attachment summaries, and material changes that affect completing the task.
 4. **Exam completeness:** compare important one-time, high-weight examinations against **NUS Exams**. Keep confirmed exams in Google Calendar rather than creating duplicate Notion tasks. Report missing, conflicting, or unconfirmed exam events.
 
 Match records using stable Canvas identifiers or source URLs when available. Use title, subject, and date only as supporting evidence; never assume a title-only match is reliable.
@@ -113,20 +116,20 @@ Do not infer student visibility from a module or module-item `published` field a
 
 When Canvas converts or replaces a record, apply any conversion rule recorded in the module's **Canvas to Notion** section before reporting a missing task, duplicate, extra, or removal. Preserve the existing Notion task when the course-specific rule says the new Canvas record is the continuation of it.
 
-Inspect new and modified announcements for task-relevant changes. Add useful announcement details and source links to the corresponding existing task page after verifying the stable Canvas identifier or source URL and the Notion module relation. Do not attach an announcement to a task using title alone.
+Inspect new and modified announcements for task-relevant changes. Incorporate useful current announcement details and source links into the corresponding existing task page after verifying the stable Canvas identifier or source URL and the Notion module relation. Replace any instructions that the announcement explicitly supersedes; do not retain the old version as a log. Do not attach an announcement to a task using title alone.
 
-### Writing task-page information
+### Maintaining task-page information
 
-- Add concise, task-relevant information inside the existing task page body only.
+- Make the existing task page body a concise, task-relevant, self-contained current reference. The reader should not need to reconstruct the latest instructions from a sequence of dated append-only updates.
+- Freely add, edit, reorder, merge, or remove blocks within the matched task page body when reliable Canvas material establishes what is current.
 - Preserve the Canvas source URL and important external links as clickable links with meaningful labels.
 - Store availability windows and due dates in the `Due date` property when the user has authorized the property write. Do not duplicate those dates in the page body merely for indexing; keep body dates only when they are necessary to explain a policy, conflict, or sequence of requirements.
-- Prefer an additive section or clearly separated update over rewriting existing user-authored notes.
-- Do not duplicate information already present on the page.
-- Do not replace an entire page body when a small addition or correction is sufficient.
+- Consolidate duplicate information and remove superseded Canvas-derived instructions rather than retaining a change log.
+- Preserve useful user-authored personal notes and planning content. Integrate them cleanly with the current instructions when possible, but do not rewrite their meaning.
+- Retain historical information only when it is still operationally relevant, such as a correction policy or a required sequence of earlier and later steps.
 - Do not upload original course attachments unless the user explicitly authorizes the upload.
-- If attachment text is unavailable, retain and add the available metadata or source link and state that the content could not be read.
-- Use Canvas as the factual authority for Canvas task details, but preserve the user's personal notes and planning content.
-- If Canvas and Notion conflict outside the date field, correct only clearly wrong task-page body content. Leave ambiguous conflicts unchanged and report them.
+- If attachment text is unavailable, retain the available metadata or source link and state that the content could not be read; do not discard older instructions solely because an inaccessible attachment might supersede them.
+- Use Canvas as the factual authority for Canvas task details. When Canvas and Notion conflict outside the date field, update clearly stale or wrong Canvas-derived task-page content. Leave ambiguous conflicts unchanged and report them.
 
 ### Partial coverage and warnings
 
@@ -136,6 +139,7 @@ Inspect new and modified announcements for task-relevant changes. Add useful ann
 - Report uncertainty whenever warnings, gated content, missing download URLs, or ambiguous Notion matches prevent a reliable conclusion.
 - Apply the warning interpretations recorded in each module page's **Canvas to Notion** section before producing the Mode B report. Expected unused Canvas features, unreleased files, and intentionally gated content must not be repeated as warnings when the module notes classify them as normal.
 - If a raw warning omits the affected identifier or filename, resolve it from module references, known identifiers, file manifests, and preserved local files before reporting it. If it still cannot be resolved, say that the raw warning lacks the identifier rather than guessing.
+- A relation or search result that points to a deleted or archived Notion page is not a coverage warning and must not be investigated or reported.
 - If calendar access is unavailable or the user has asked to omit calendar work, skip it without treating that as a Mode B warning or incomplete Canvas/Notion coverage.
 
 ### Completion report
@@ -148,8 +152,8 @@ Use the following structure after every Canvas to Notion update:
 4. Add a separate **Audit summary** list for routine confirmations, grouping together:
    - every missing, uncertain, duplicate, or extra task found by subject, or confirmation that none were found;
    - every Notion date property changed, or confirmation that no dates were modified when date writes were not authorized;
-   - each existing block corrected, or confirmation that none were corrected;
-   - anything created or otherwise updated in Notion outside additive page-body content;
-   - confirmation that nothing was deleted.
+   - each task page materially rewritten or cleaned up, including the stale or duplicated content removed, or confirmation that none required cleanup;
+   - anything created or otherwise updated in Notion outside the authorized task-page body maintenance;
+   - confirmation that no pages, properties, or out-of-scope content were deleted.
 
-The report must still cover roughly what information was added to existing task pages, every relevant Canvas warning or item that could not be verified, and any authorized **NUS Exams** work. If calendar work was unavailable or intentionally omitted, do not present that omission as a warning.
+The report must still cover roughly what information was added, rewritten, consolidated, or removed in existing task pages, every relevant Canvas warning or item that could not be verified, and any authorized **NUS Exams** work. If calendar work was unavailable or intentionally omitted, do not present that omission as a warning.

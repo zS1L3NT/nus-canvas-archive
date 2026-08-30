@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, stat, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export function sha256(value: string | NodeJS.ArrayBufferView): string {
@@ -27,11 +27,40 @@ export function stableJson(value: unknown, space = 2): string {
   return JSON.stringify(stableValue(value), null, space);
 }
 
-export async function atomicWrite(filePath: string, content: string | Uint8Array): Promise<void> {
+function mtimeDate(value: string | number | Date): Date | null {
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+export async function setFileMtime(filePath: string, value: string | number | Date): Promise<void> {
+  const date = mtimeDate(value);
+  if (date) await utimes(filePath, date, date);
+}
+
+export async function atomicWrite(
+  filePath: string,
+  content: string | Uint8Array,
+  mtime?: string | number | Date,
+): Promise<void> {
+  try {
+    const existing = await readFile(filePath);
+    const next = Buffer.from(content);
+    if (Buffer.compare(existing, next) === 0) {
+      if (mtime !== undefined) {
+        const current = await stat(filePath);
+        const date = mtimeDate(mtime);
+        if (date && Math.abs(current.mtimeMs - date.getTime()) > 1) await setFileMtime(filePath, date);
+      }
+      return;
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
   await mkdir(path.dirname(filePath), { recursive: true });
   const temporary = `${filePath}.partial-${process.pid}`;
   await writeFile(temporary, content);
   await rename(temporary, filePath);
+  if (mtime !== undefined) await setFileMtime(filePath, mtime);
 }
 
 export async function writeJson(filePath: string, value: unknown): Promise<void> {

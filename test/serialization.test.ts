@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { extractText, readJson, stableJson, writeJson } from "../src/lib.ts";
+import { atomicWrite, extractText, readJson, stableJson, writeJson } from "../src/lib.ts";
 
 test("stable JSON recursively sorts object keys", () => {
   assert.equal(
@@ -22,6 +22,22 @@ test("JSON files round-trip through atomic writes", async (context) => {
   assert.deepEqual(await readJson(destination), { a: 2, z: 1 });
   assert.equal(await readFile(destination, "utf8"), '{\n  "a": 2,\n  "z": 1\n}\n');
   assert.equal(await readJson(path.join(directory, "missing.json"), "fallback"), "fallback");
+});
+
+test("unchanged atomic writes preserve content and apply the source mtime", async (context) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "canvas-archive-test-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const destination = path.join(directory, "value.md");
+  const mtime = "2025-04-03T12:34:56.000Z";
+
+  await atomicWrite(destination, "same\n", mtime);
+  const first = await stat(destination);
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  await atomicWrite(destination, "same\n", mtime);
+  const second = await stat(destination);
+
+  assert.equal(second.mtimeMs, first.mtimeMs);
+  assert.equal(second.mtimeMs, Date.parse(mtime));
 });
 
 test("plain-text extraction normalizes whitespace and records the output", async (context) => {

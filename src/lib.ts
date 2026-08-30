@@ -19,6 +19,7 @@ export {
   readJson,
   sha256,
   sha256File,
+  setFileMtime,
   stableJson,
   stableValue,
   writeJson,

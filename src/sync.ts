@@ -30,6 +30,7 @@ import {
   rebaseMarkdownImages,
   safeName,
   sha256File,
+  setFileMtime,
   stableJson,
   stateFromDocuments,
   writeJson,
@@ -362,13 +363,30 @@ function moduleViewFilename(name: string, source: ViewSource | null): string {
   return `${name}${markdown ? ".md" : ""}`;
 }
 
-async function copyViewFile(destination: string, source: string): Promise<void> {
+async function copyViewFile(destination: string, source: string, mtime?: string): Promise<void> {
   await mkdir(path.dirname(destination), { recursive: true });
   try {
+    const sourceStat = await stat(source);
     if (/\.md$/i.test(source)) {
       const markdown = await readFile(source, "utf8");
-      await atomicWrite(destination, rebaseMarkdownImages(markdown, path.dirname(source), path.dirname(destination)));
-    } else await copyFile(source, destination);
+      await atomicWrite(
+        destination,
+        rebaseMarkdownImages(markdown, path.dirname(source), path.dirname(destination)),
+        mtime ?? sourceStat.mtime,
+      );
+    } else {
+      let unchanged = false;
+      try {
+        const destinationStat = await stat(destination);
+        unchanged = destinationStat.size === sourceStat.size && destinationStat.mtimeMs === sourceStat.mtimeMs;
+      } catch (error) {
+        if (!hasErrorCode(error, "ENOENT")) throw error;
+      }
+      if (!unchanged) {
+        await copyFile(source, destination);
+        if (mtime) await setFileMtime(destination, mtime);
+      }
+    }
   } catch (error) {
     if (!hasErrorCode(error, "ENOENT")) throw error;
   }
@@ -384,9 +402,6 @@ async function buildModuleView(
   const viewDirectory = path.join(viewCourseDirectory, "Modules");
   const manifestPath = path.join(rawCourseDirectory, ".module-view.json");
   const previous = await readJson<{ paths: string[] }>(manifestPath, { paths: [] });
-  for (const relativePath of [...(previous.paths || [])].sort((left, right) => right.length - left.length)) {
-    await rm(path.join(viewDirectory, relativePath), { recursive: true, force: true });
-  }
   await mkdir(viewDirectory, { recursive: true });
 
   const generatedPaths: string[] = [];
@@ -424,7 +439,7 @@ async function buildModuleView(
         await mkdir(itemDirectory, { recursive: true });
         itemPath = addPath(path.relative(viewDirectory, path.join(itemDirectory, moduleViewFilename(name, source))));
         if (source?.local_path) {
-          await copyViewFile(itemPath, path.join(rawCourseDirectory, source.local_path));
+          await copyViewFile(itemPath, path.join(rawCourseDirectory, source.local_path), source.updated_at);
         } else {
           await atomicWrite(itemPath, moduleViewStub(item, data.course.id));
         }
@@ -432,12 +447,16 @@ async function buildModuleView(
       } else {
         itemPath = addPath(path.relative(viewDirectory, path.join(parent, moduleViewFilename(name, source))));
         if (source?.local_path) {
-          await copyViewFile(itemPath, path.join(rawCourseDirectory, source.local_path));
+          await copyViewFile(itemPath, path.join(rawCourseDirectory, source.local_path), source.updated_at);
         } else {
           await atomicWrite(itemPath, moduleViewStub(item, data.course.id));
         }
       }
     }
+  }
+  const generatedSet = new Set(generatedPaths);
+  for (const relativePath of [...(previous.paths || [])].sort((left, right) => right.length - left.length)) {
+    if (!generatedSet.has(relativePath)) await rm(path.join(viewDirectory, relativePath), { recursive: true, force: true });
   }
   await writeJson(manifestPath, { paths: generatedPaths });
 }
@@ -510,9 +529,6 @@ async function buildCollectionViews(
   const viewDirectory = viewCourseDirectory;
   const manifestPath = path.join(rawCourseDirectory, ".collection-view.json");
   const previous = await readJson<{ paths: string[] }>(manifestPath, { paths: [] });
-  for (const relativePath of [...(previous.paths || [])].sort((left, right) => right.length - left.length)) {
-    await rm(path.join(viewDirectory, relativePath), { recursive: true, force: true });
-  }
   await mkdir(viewDirectory, { recursive: true });
   const generatedPaths: string[] = [];
   const addPath = (absolutePath: string): string => {
@@ -678,6 +694,10 @@ async function buildCollectionViews(
     const target = addPath(path.join(pageDirectory, pageNames.get(page) ?? `${safeName(page.title)}.md`));
     await link(target, path.join(rawCourseDirectory, page.local_path));
   }
+  const generatedSet = new Set(generatedPaths);
+  for (const relativePath of [...(previous.paths || [])].sort((left, right) => right.length - left.length)) {
+    if (!generatedSet.has(relativePath)) await rm(path.join(viewDirectory, relativePath), { recursive: true, force: true });
+  }
   await writeJson(manifestPath, {
     paths: generatedPaths,
     pages_not_in_modules: extraPages.map((page) => ({
@@ -729,6 +749,8 @@ async function archiveFiles(
         data.warnings.push({ kind: "file", message: sanitizeCanvasSecrets(`${file.id} — ${displayName}: ${reason}`) });
       }
     }
+    if (file.updated_at && ["downloaded", "unchanged", "legacy-preserved"].includes(status))
+      await setFileMtime(destination, file.updated_at);
     if (options.downloadFiles && matches && !contentSha256) contentSha256 = await sha256File(destination);
 
     let text = old?.text ?? { status: "not-requested", bytes: 0 };
@@ -739,6 +761,7 @@ async function archiveFiles(
         text = await extractText(destination, textDestination, {
           contentType: file["content-type"] || "",
           maxSourceBytes: config.maxTextSourceBytes,
+          mtime: file.updated_at,
         });
         if (text.status === "extracted") text.file_bytes = (await stat(textDestination)).size;
       }
@@ -757,6 +780,7 @@ async function archiveFiles(
         const extracted = await extractText(preservedSource, preservedTextDestination, {
           contentType: file["content-type"] || "",
           maxSourceBytes: config.maxTextSourceBytes,
+          mtime: file.updated_at,
         });
         if (extracted.status === "extracted") extracted.file_bytes = (await stat(preservedTextDestination)).size;
         legacyPreserved = {
@@ -834,7 +858,7 @@ async function buildDocuments(
   for (const page of data.pages) {
     const localPath = path.posix.join("content/pages", `${page.page_id || safeName(page.url)}.md`);
     const content = markdown(page.body || "", localPath);
-    await atomicWrite(path.join(courseDirectory, localPath), `# ${page.title}\n\n${content}`);
+    await atomicWrite(path.join(courseDirectory, localPath), `# ${page.title}\n\n${content}`, page.updated_at);
     documents.push(
       documentRecord({
         id: page.page_id || page.url,
@@ -857,6 +881,7 @@ async function buildDocuments(
     await atomicWrite(
       path.join(courseDirectory, localPath),
       `# ${assignment.name}\n\n## Dates\n\n${dateLines || "- No dated variants"}\n\n${content}`,
+      assignment.updated_at,
     );
     documents.push(
       documentRecord({
@@ -884,7 +909,7 @@ async function buildDocuments(
   for (const announcement of sortedAnnouncements) {
     const localPath = path.posix.join("content/announcements", `${announcement.id}.md`);
     const content = markdown(announcement.message || "", localPath);
-    await atomicWrite(path.join(courseDirectory, localPath), `# ${announcement.title}\n\n${content}`);
+    await atomicWrite(path.join(courseDirectory, localPath), `# ${announcement.title}\n\n${content}`, announcement.posted_at);
     documents.push(
       documentRecord({
         id: announcement.id,
@@ -931,6 +956,7 @@ async function buildDocuments(
     await atomicWrite(
       path.join(courseDirectory, localPath),
       `# ${quiz.title}\n\n## Details\n\n${dateLines || "- No dated variants"}\n\n${content}`,
+      quiz.updated_at,
     );
     documents.push(
       documentRecord({

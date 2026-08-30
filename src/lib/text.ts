@@ -212,7 +212,11 @@ async function zipText(filePath: string): Promise<string> {
 export async function extractText(
   filePath: string,
   destination: string,
-  { contentType = "", maxSourceBytes = 100 * 1024 * 1024 }: { contentType?: string; maxSourceBytes?: number } = {},
+  {
+    contentType = "",
+    maxSourceBytes = 100 * 1024 * 1024,
+    mtime,
+  }: { contentType?: string; maxSourceBytes?: number; mtime?: string | number | Date } = {},
 ): Promise<TextExtraction> {
   const fileStat = await stat(filePath);
   if (fileStat.size > maxSourceBytes) return { status: "skipped-too-large", bytes: 0 };
@@ -258,6 +262,6 @@ export async function extractText(
     .replace(/\n{4,}/g, "\n\n\n")
     .trim();
   if (!normalized) return { status: "empty", bytes: 0 };
-  await atomicWrite(destination, `${normalized}\n`);
+  await atomicWrite(destination, `${normalized}\n`, mtime);
   return { status: "extracted", bytes: Buffer.byteLength(normalized), sha256: sha256(normalized) };
 }
