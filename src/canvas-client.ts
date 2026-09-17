@@ -17,6 +17,12 @@ export async function canvasJson<T>(config: ArchiveConfig, args: string[]): Prom
   return JSON.parse(output) as T;
 }
 
+export function canvasApiBody<T>(value: unknown): T {
+  if (!value || typeof value !== "object" || !("body" in value))
+    throw new Error("Canvas raw API response did not contain a body");
+  return (value as { body: T }).body;
+}
+
 export async function canvasDownload(config: ArchiveConfig, fileId: number, destination: string): Promise<void> {
   await mkdir(path.dirname(destination), { recursive: true });
   const temporary = `${destination}.partial-${process.pid}`;
@@ -73,6 +79,25 @@ export async function collectResource<T>(
 ): Promise<T> {
   try {
     return await canvasJson(config, args);
+  } catch (error) {
+    const { raw, structured } = canvasError(error);
+    const message = structured
+      ? `${structured.command || kind}: ${String(structured.error).trim()}`
+      : raw.replace(/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?[+-]\d\d:\d\d/g, "<timestamp>");
+    warnings.push({ kind, message });
+    return fallback;
+  }
+}
+
+export async function collectApiResource<T>(
+  config: ArchiveConfig,
+  warnings: CanvasWarning[],
+  kind: string,
+  args: string[],
+  fallback: T = [] as T,
+): Promise<T> {
+  try {
+    return canvasApiBody<T>(await canvasJson<unknown>(config, args));
   } catch (error) {
     const { raw, structured } = canvasError(error);
     const message = structured

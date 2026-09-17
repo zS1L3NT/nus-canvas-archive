@@ -97,6 +97,8 @@ Use this mode whenever the user asks for a Canvas to Notion update. Its purpose 
 
 Store new course-specific Mode B decisions on the applicable module page under **Canvas to Notion**, not in this file. Keep this file limited to the general workflow that ensures those notes are always read and followed.
 
+Keep each module's **Canvas to Notion** section organized for human reading with concise topical level-three headings, such as **Tutorials**, **Assignments**, **Quizzes**, **Overrides**, **Ignored items**, and **Warning handling**. Use only headings relevant to that module, place each rule under its clearest heading, and consolidate duplicated or contradictory instructions instead of leaving a chronological list.
+
 If the user explicitly requests a fresh Canvas update, perform the authorized read-only refresh first, review its warnings, and then use the completed archive as the comparison source.
 
 ### Required audit on every update

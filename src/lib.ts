@@ -17,9 +17,9 @@ export {
 export {
   atomicWrite,
   readJson,
+  setFileMtime,
   sha256,
   sha256File,
-  setFileMtime,
   stableJson,
   stableValue,
   writeJson,

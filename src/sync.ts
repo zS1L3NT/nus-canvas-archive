@@ -8,11 +8,16 @@ import { promisify } from "node:util";
 import {
   assignmentDates,
   changeSummary,
+  conversationBelongsToCourse,
   embeddedFileIds,
+  forwardedMessageContent,
+  inboxConversationOrder,
+  inboxDetailArgs,
+  inboxListArgs,
   incompleteDocumentKinds,
   sanitizeCanvasSecrets,
 } from "./archive-helpers.ts";
-import { canvasDownload, canvasError, canvasJson, collectResource } from "./canvas-client.ts";
+import { canvasDownload, canvasError, canvasJson, collectApiResource, collectResource } from "./canvas-client.ts";
 import { loadConfig, parseOptions } from "./config.ts";
 import {
   atomicWrite,
@@ -29,8 +34,8 @@ import {
   readJson,
   rebaseMarkdownImages,
   safeName,
-  sha256File,
   setFileMtime,
+  sha256File,
   stableJson,
   stateFromDocuments,
   writeJson,
@@ -49,6 +54,7 @@ import type {
   CanvasCourse,
   CanvasFile,
   CanvasFolder,
+  CanvasInboxConversation,
   CanvasModule,
   CanvasModuleItem,
   CanvasPage,
@@ -66,7 +72,12 @@ import type {
 export {
   assignmentDates,
   changeSummary,
+  conversationBelongsToCourse,
   embeddedFileIds,
+  forwardedMessageContent,
+  inboxConversationOrder,
+  inboxDetailArgs,
+  inboxListArgs,
   incompleteDocumentKinds,
   sanitizeCanvasSecrets,
 } from "./archive-helpers.ts";
@@ -184,6 +195,51 @@ async function supplementFolders(
   return [...foldersById.values()].sort((left, right) => Number(left.id) - Number(right.id));
 }
 
+async function collectInboxForCourse(
+  config: ArchiveConfig,
+  warnings: CanvasWarning[],
+  courseId: number,
+): Promise<{ summaries: CanvasInboxConversation[]; conversations: CanvasInboxConversation[] }> {
+  const summaries = await collectApiResource<CanvasInboxConversation[]>(
+    config,
+    warnings,
+    "inbox-list",
+    inboxListArgs(courseId),
+  );
+  const conversations: CanvasInboxConversation[] = [];
+  const seen = new Set<number>();
+  for (const summary of summaries) {
+    const id = Number(summary?.id);
+    if (!Number.isFinite(id) || seen.has(id)) continue;
+    seen.add(id);
+    if (!conversationBelongsToCourse(summary, courseId)) {
+      warnings.push({
+        kind: "inbox-attribution",
+        message: `Conversation ${id} returned for course_${courseId} identifies a different course; skipped.`,
+      });
+      continue;
+    }
+    const conversation = await collectApiResource<CanvasInboxConversation | null>(
+      config,
+      warnings,
+      "inbox",
+      inboxDetailArgs(id),
+      null,
+    );
+    if (!conversation) continue;
+    if (!conversationBelongsToCourse(conversation, courseId)) {
+      warnings.push({
+        kind: "inbox-attribution",
+        message: `Conversation ${id} detail identifies a different course than course_${courseId}; skipped.`,
+      });
+      continue;
+    }
+    conversations.push(conversation);
+  }
+  conversations.sort(inboxConversationOrder);
+  return { summaries, conversations };
+}
+
 async function collectCourse(config: ArchiveConfig, configuredCourse: ConfiguredCourse): Promise<CourseData> {
   const warnings: CanvasWarning[] = [];
   const courseId = configuredCourse.id;
@@ -245,6 +301,7 @@ async function collectCourse(config: ArchiveConfig, configuredCourse: Configured
     String(courseId),
     "--all-events",
   ]);
+  const inbox = await collectInboxForCourse(config, warnings, courseId);
   const listedFolders = await collectResource<CanvasFolder[]>(config, warnings, "file-list", [
     "folders",
     "list",
@@ -278,6 +335,8 @@ async function collectCourse(config: ArchiveConfig, configuredCourse: Configured
     folders,
     quizzes,
     calendarEvents,
+    inboxList: inbox.summaries,
+    inbox: inbox.conversations,
     warnings,
   });
 }
@@ -307,9 +366,9 @@ async function cleanupGeneratedDocuments(
   incompleteKinds: string[],
 ): Promise<void> {
   const incomplete = new Set(incompleteKinds);
-  for (const kind of ["page", "assignment", "announcement", "module", "quiz"]) {
+  for (const kind of ["page", "assignment", "announcement", "module", "quiz", "inbox"]) {
     if (incomplete.has(kind)) continue;
-    const directory = path.join(courseDirectory, "content", `${kind}s`);
+    const directory = path.join(courseDirectory, "content", kind === "inbox" ? "inbox" : `${kind}s`);
     let names: string[];
     try {
       names = await readdir(directory);
@@ -456,7 +515,8 @@ async function buildModuleView(
   }
   const generatedSet = new Set(generatedPaths);
   for (const relativePath of [...(previous.paths || [])].sort((left, right) => right.length - left.length)) {
-    if (!generatedSet.has(relativePath)) await rm(path.join(viewDirectory, relativePath), { recursive: true, force: true });
+    if (!generatedSet.has(relativePath))
+      await rm(path.join(viewDirectory, relativePath), { recursive: true, force: true });
   }
   await writeJson(manifestPath, { paths: generatedPaths });
 }
@@ -607,6 +667,18 @@ async function buildCollectionViews(
     quizzes,
   );
 
+  const inbox = [...(data.inbox || [])].sort(inboxConversationOrder);
+  const inboxDocuments = documents.filter((document) => document.kind === "inbox");
+  await collection(
+    "Inbox",
+    inbox,
+    (conversation) =>
+      `${orderPrefix(inbox.indexOf(conversation) + 1)}${safeName(conversation.subject || `Conversation ${conversation.id}`)}.md`,
+    (conversation) =>
+      inboxDocuments.find((document) => document.document_id.endsWith(`:inbox:${conversation.id}`))?.local_path,
+    inbox,
+  );
+
   const fileDirectory = path.join(viewDirectory, "Files");
   await mkdir(fileDirectory, { recursive: true });
   const fileRecords = new Map((data.files || []).map((file) => [String(file.id), file]));
@@ -696,7 +768,8 @@ async function buildCollectionViews(
   }
   const generatedSet = new Set(generatedPaths);
   for (const relativePath of [...(previous.paths || [])].sort((left, right) => right.length - left.length)) {
-    if (!generatedSet.has(relativePath)) await rm(path.join(viewDirectory, relativePath), { recursive: true, force: true });
+    if (!generatedSet.has(relativePath))
+      await rm(path.join(viewDirectory, relativePath), { recursive: true, force: true });
   }
   await writeJson(manifestPath, {
     paths: generatedPaths,
@@ -909,7 +982,11 @@ async function buildDocuments(
   for (const announcement of sortedAnnouncements) {
     const localPath = path.posix.join("content/announcements", `${announcement.id}.md`);
     const content = markdown(announcement.message || "", localPath);
-    await atomicWrite(path.join(courseDirectory, localPath), `# ${announcement.title}\n\n${content}`, announcement.posted_at);
+    await atomicWrite(
+      path.join(courseDirectory, localPath),
+      `# ${announcement.title}\n\n${content}`,
+      announcement.posted_at,
+    );
     documents.push(
       documentRecord({
         id: announcement.id,
@@ -997,6 +1074,60 @@ async function buildDocuments(
       }),
     );
   }
+  for (const conversation of data.inbox) {
+    const localPath = path.posix.join("content/inbox", `${conversation.id}.md`);
+    const messages = Array.isArray(conversation.messages) ? conversation.messages : [];
+    const participants = Array.isArray(conversation.participants) ? conversation.participants : [];
+    const authorName = (message: (typeof messages)[number], index: number): string => {
+      const participant = participants.find(
+        (candidate) =>
+          candidate &&
+          typeof candidate === "object" &&
+          String((candidate as Record<string, unknown>).id) === String(message.author_id),
+      ) as Record<string, unknown> | undefined;
+      const author =
+        message.author?.display_name ||
+        message.author?.name ||
+        message.author?.sortable_name ||
+        participant?.display_name ||
+        participant?.name ||
+        participant?.full_name ||
+        (message.author_id ? `User ${message.author_id}` : `Message ${index + 1}`);
+      return String(author);
+    };
+    const messageLines = [...messages].reverse().map((message, index) => {
+      const timestamp = message.created_at ? ` — ${formatDate(message.created_at)}` : "";
+      return `### ${authorName(message, index)}${timestamp}\n\n${markdown(forwardedMessageContent(message), localPath)}`;
+    });
+    const content = messageLines.length
+      ? messageLines.join("\n\n")
+      : markdown(conversation.last_message || "", localPath);
+    await atomicWrite(
+      path.join(courseDirectory, localPath),
+      `# ${conversation.subject || `Conversation ${conversation.id}`}\n\n${content}\n`,
+      conversation.last_message_at || conversation.updated_at,
+    );
+    documents.push(
+      documentRecord({
+        id: conversation.id,
+        kind: "inbox",
+        course: code,
+        title: conversation.subject || `Conversation ${conversation.id}`,
+        sourceUrl:
+          conversation.html_url || conversation.url || `https://canvas.nus.edu.sg/conversations/${conversation.id}`,
+        updatedAt: conversation.last_message_at || conversation.updated_at,
+        localPath,
+        metadata: {
+          conversation_id: conversation.id,
+          course_id: data.course.id,
+          workflow_state: conversation.workflow_state,
+          last_message_at: conversation.last_message_at || conversation.updated_at,
+          message_count: messages.length || conversation.message_count,
+        },
+        content,
+      }),
+    );
+  }
   for (const file of fileEntries) {
     let searchableContent = "";
     for (const textPath of [file.text_path, file.legacy_preserved?.text_path].filter((value): value is string =>
@@ -1072,7 +1203,7 @@ function courseIndex(
     );
   if (!dated.length) lines.push("| No dated assignments found | | |");
   lines.push("", "## Searchable content", "");
-  for (const kind of ["page", "assignment", "announcement", "module", "quiz", "calendar", "file"]) {
+  for (const kind of ["page", "assignment", "announcement", "module", "quiz", "calendar", "inbox", "file"]) {
     const count = documents.filter((document) => document.kind === kind).length;
     lines.push(`- ${kind}: ${count}`);
   }
@@ -1106,6 +1237,8 @@ async function archiveCourse(
     "folders",
     "quizzes",
     "calendarEvents",
+    "inboxList",
+    "inbox",
     "warnings",
   ];
   for (const key of rawKeys) {
@@ -1369,6 +1502,8 @@ async function rebuildViewsFromArchive(config: ArchiveConfig, argv: string[]): P
       folders: await readRaw<CanvasFolder[]>("folders", []),
       quizzes: await readRaw<CanvasQuiz[]>("quizzes", []),
       calendarEvents: await readRaw<CanvasCalendarEvent[]>("calendarEvents", []),
+      inboxList: await readRaw<CanvasInboxConversation[]>("inboxList", []),
+      inbox: await readRaw<CanvasInboxConversation[]>("inbox", []),
       warnings: await readRaw<CanvasWarning[]>("warnings", []),
     };
     const documentsPath = path.join(courseDirectory, "documents.jsonl");

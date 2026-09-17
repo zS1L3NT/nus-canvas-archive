@@ -171,6 +171,34 @@ export interface CanvasCalendarEvent {
   context_code?: string;
 }
 
+export interface CanvasInboxMessage {
+  id?: number;
+  body?: string;
+  created_at?: string;
+  author_id?: number;
+  author?: {
+    display_name?: string;
+    name?: string;
+    sortable_name?: string;
+  };
+  [key: string]: unknown;
+}
+
+export interface CanvasInboxConversation {
+  id: number;
+  subject?: string;
+  messages?: CanvasInboxMessage[];
+  last_message?: string;
+  last_message_at?: string;
+  updated_at?: string;
+  workflow_state?: string;
+  html_url?: string;
+  url?: string;
+  context_code?: string;
+  course_id?: number | string;
+  [key: string]: unknown;
+}
+
 export interface CourseData {
   configuredCourse: ConfiguredCourse;
   course: CanvasCourse;
@@ -184,6 +212,8 @@ export interface CourseData {
   folders: CanvasFolder[];
   quizzes: CanvasQuiz[];
   calendarEvents: CanvasCalendarEvent[];
+  inboxList: CanvasInboxConversation[];
+  inbox: CanvasInboxConversation[];
   warnings: CanvasWarning[];
 }
 

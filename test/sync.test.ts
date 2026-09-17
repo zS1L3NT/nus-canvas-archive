@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
-import { canvasError } from "../src/canvas-client.ts";
+import { canvasApiBody, canvasError } from "../src/canvas-client.ts";
 import { resolvePath } from "../src/config.ts";
 import {
   assignmentDates,
   changeSummary,
+  conversationBelongsToCourse,
   embeddedFileIds,
+  forwardedMessageContent,
+  inboxConversationOrder,
+  inboxDetailArgs,
+  inboxListArgs,
   incompleteDocumentKinds,
   parseOptions,
   sanitizeCanvasSecrets,
@@ -29,6 +34,11 @@ test("structured Canvas errors are recovered from mixed stderr output", () => {
     raw: 'diagnostic\n{"command":"files.download","error":"not available"}',
     structured: { command: "files.download", error: "not available" },
   });
+});
+
+test("raw Canvas API responses expose their body", () => {
+  assert.deepEqual(canvasApiBody({ body: [{ id: 1 }] }), [{ id: 1 }]);
+  assert.throws(() => canvasApiBody({ status_code: 200 }), /did not contain a body/);
 });
 
 test("project paths resolve consistently", () => {
@@ -78,9 +88,63 @@ test("collection warnings map to the affected document kinds", () => {
       { kind: "assignment-list" },
       { kind: "file" },
       { kind: "file-list" },
+      { kind: "inbox" },
     ]),
-    ["page", "assignment", "file"],
+    ["page", "assignment", "file", "inbox"],
   );
+});
+
+test("Inbox conversations require matching explicit course attribution", () => {
+  assert.equal(conversationBelongsToCourse({ context_code: "course_94109" }, 94109), true);
+  assert.equal(conversationBelongsToCourse({ audience_contexts: { course_94109: [1] } }, 94109), true);
+  assert.equal(conversationBelongsToCourse({ audience_contexts: { courses: { "94109": [1] } } }, 94109), true);
+  assert.equal(conversationBelongsToCourse({ context_code: "course_99999" }, 94109), false);
+  assert.equal(conversationBelongsToCourse({ subject: "No explicit context" }, 94109), true);
+});
+
+test("Inbox collection bypasses the broken typed conversation decoder", () => {
+  assert.deepEqual(inboxListArgs(94109), [
+    "api",
+    "GET",
+    "/api/v1/conversations",
+    "--paginate",
+    "--query",
+    "filter[]=course_94109",
+  ]);
+  assert.deepEqual(inboxDetailArgs(42), [
+    "api",
+    "GET",
+    "/api/v1/conversations/42",
+    "--query",
+    "auto_mark_as_read=false",
+  ]);
+});
+
+test("Inbox conversations sort oldest first with stable ID tie-breaking", () => {
+  const conversations = [
+    { id: 3, last_message_at: "2026-09-17T03:00:00Z" },
+    { id: 2, last_message_at: "2026-09-16T03:00:00Z" },
+    { id: 1, last_message_at: "2026-09-16T03:00:00Z" },
+  ];
+  assert.deepEqual(
+    conversations.sort(inboxConversationOrder).map(({ id }) => id),
+    [1, 2, 3],
+  );
+});
+
+test("forwarded Inbox messages render recursively in oldest-first order with attachments", () => {
+  const content = forwardedMessageContent([
+    {
+      body: "new",
+      attachments: [{ filename: "new.pdf", url: "https://canvas.example/new.pdf" }],
+      media_comment: { display_name: "Recording", url: "https://canvas.example/media" },
+    },
+    { body: "old", forwarded_messages: [{ body: "nested" }] },
+  ]);
+  assert.ok(content.indexOf("old") < content.indexOf("nested"));
+  assert.ok(content.indexOf("nested") < content.indexOf("new"));
+  assert.match(content, /\[new\.pdf\]\(https:\/\/canvas\.example\/new\.pdf\)/);
+  assert.match(content, /\[Recording\]\(https:\/\/canvas\.example\/media\)/);
 });
 
 test("sync options select a course and honor metadata-only mode", () => {

@@ -8,10 +8,11 @@ The archiver is written in strict TypeScript and runs directly on Bun. Install d
 
 Raw machine data stays in the repository under `./raw`; the Finder-facing view is written outside the repository under `~/NUS Canvas` by default. Change `rawDirectory` and `viewDirectory` in `config.json` to customize them:
 
-- `~/NUS Canvas/<COURSE>/` is the Finder-facing Canvas-shaped view, with copied Modules, Quizzes, Assignments, Announcements, Files, and unlinked pages at its root;
+- `~/NUS Canvas/<COURSE>/` is the Finder-facing Canvas-shaped view, with copied Modules, Quizzes, Assignments, Announcements, Inbox, Files, and unlinked pages at its root;
 - `raw/<COURSE>/` is machine-only: lossless Canvas responses, normalized records, manifests, state, and downloaded content;
 - `raw/<COURSE>/content/text/` contains deterministic text sidecars for supported text, HTML, PDF, Word, PowerPoint, Excel, ZIP, and OCR-readable image files;
 - `raw/<COURSE>/documents.jsonl` contains stable, normalized records for AI indexing;
+- `raw/<COURSE>/inbox.json` and `raw/<COURSE>/inboxList.json` preserve course-filtered Inbox thread details and list responses;
 - `raw/<COURSE>/file-manifest.json` records original attachment metadata, hashes, and extraction status;
 - `raw/logs/latest.md` and `raw/logs/latest.json` report additions, modifications, and removals; timestamped older reports are kept under `raw/logs/older/`.
 - `~/NUS Canvas/logs/latest.md` is the Finder-facing change report; dated Markdown reports under `~/NUS Canvas/logs/older/` contain the readable history.
@@ -41,4 +42,4 @@ bun run verify
 
 `bun run sync` is the full rebuild path: it reads Canvas, downloads missing raw attachments, writes normalized content, and regenerates every copied view. If a course’s `raw/<COURSE>/` directory is removed first, the next successful sync recreates it from scratch. `bun run rebuild-views` only regenerates views from the existing local raw corpus and does not contact Canvas.
 
-All Canvas operations in the implementation are reads. It intentionally excludes grades, submissions, quiz attempts, rosters, conversations, and every Canvas create/update/delete operation.
+All Canvas operations in the implementation are reads. It intentionally excludes grades, submissions, quiz attempts, rosters, and every Canvas create/update/delete operation. Inbox collection is limited to conversations returned by each configured course filter; account-level mailbox contents are not archived globally. Conversation details are fetched with read-state changes disabled.
