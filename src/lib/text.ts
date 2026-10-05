@@ -79,6 +79,18 @@ export function decodeHtml(value: unknown = ""): string {
 }
 
 type ImageSource = (fileId: number | null, source: string) => string;
+type LinkTarget = (href: string) => string | null;
+
+export function markdownDestination(target: string): string {
+  return target
+    .replaceAll("%", "%25")
+    .replaceAll(" ", "%20")
+    .replaceAll("(", "%28")
+    .replaceAll(")", "%29")
+    .replaceAll(">", "%3E")
+    .replaceAll("#", "%23")
+    .replaceAll("^", "%5E");
+}
 
 function htmlAttribute(tag: string, name: string): string {
   const match = tag.match(new RegExp(`(?:^|\\s)${name}\\s*=\\s*(["'])([\\s\\S]*?)\\1`, "i"));
@@ -101,14 +113,15 @@ function imageMarkdown(tag: string, imageSource?: ImageSource): string {
   return `![${alt}](${destination})`;
 }
 
-export function htmlToMarkdown(html: unknown = "", imageSource?: ImageSource): string {
+export function htmlToMarkdown(html: unknown = "", imageSource?: ImageSource, linkTarget?: LinkTarget): string {
   let text = String(html ?? "")
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
     .replace(/<img\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi, (tag) => imageMarkdown(tag, imageSource))
     .replace(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_match, href, label) => {
       const cleanLabel = decodeHtml(label.replace(/<[^>]+>/g, "")).trim() || href;
-      return `[${cleanLabel}](${href})`;
+      const target = linkTarget?.(decodeHtml(href));
+      return `[${cleanLabel}](${target ? markdownDestination(target) : href})`;
     })
     .replace(
       /<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi,
@@ -124,24 +137,6 @@ export function htmlToMarkdown(html: unknown = "", imageSource?: ImageSource): s
     .replace(/\n{3,}/g, "\n\n")
     .trim();
   return text ? `${text}\n` : "";
-}
-
-export function rebaseMarkdownImages(markdown: string, sourceDirectory: string, destinationDirectory: string): string {
-  return markdown.replace(/(!\[[^\]]*\]\()(?:<([^>]+)>|([^\s)]+))(\))/g, (match, prefix, wrapped, bare, suffix) => {
-    const target = wrapped || bare;
-    if (!target || /^(?:[a-z][a-z\d+.-]*:|[/#])/i.test(target)) return match;
-    let decoded = target;
-    try {
-      decoded = decodeURIComponent(target);
-    } catch {
-      /* Preserve malformed URL escapes as literal path characters. */
-    }
-    const rebased = path
-      .relative(destinationDirectory, path.resolve(sourceDirectory, decoded))
-      .split(path.sep)
-      .join("/");
-    return `${prefix}<${rebased || "."}>${suffix}`;
-  });
 }
 
 function xmlText(xml: string, tagPattern: RegExp): string {

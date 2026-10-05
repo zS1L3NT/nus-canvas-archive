@@ -12,6 +12,56 @@ export function formatDate(value: unknown, timezone = "Asia/Singapore"): string 
   }).format(date);
 }
 
+// canvas-cli reports a missing date as Go's zero time.
+export function canvasDate(value: unknown): string | null {
+  if (!value) return null;
+  const date = new Date(String(value));
+  return Number.isNaN(date.getTime()) || date.getUTCFullYear() < 1900 ? null : String(value);
+}
+
+export function displayDate(value: unknown, timezone = "Asia/Singapore"): string {
+  const valid = canvasDate(value);
+  if (!valid) return "";
+  const date = new Date(valid);
+  return new Intl.DateTimeFormat("en-SG", {
+    timeZone: timezone,
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+// "2026-10-03T10:00" in the course timezone, the datetime format Obsidian properties expect.
+export function localDateTime(value: unknown, timezone = "Asia/Singapore"): string {
+  const valid = canvasDate(value);
+  if (!valid) return "";
+  const date = new Date(valid);
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  })
+    .format(date)
+    .replace(" ", "T");
+}
+
+export function zonedDateTime(value: unknown, timezone = "Asia/Singapore"): string | null {
+  const local = localDateTime(value, timezone);
+  if (!local) return null;
+  const offset = new Intl.DateTimeFormat("en-US", { timeZone: timezone, timeZoneName: "longOffset" })
+    .formatToParts(new Date(String(value)))
+    .find((part) => part.type === "timeZoneName")
+    ?.value.replace("GMT", "");
+  return `${local}:00${offset || "+00:00"}`;
+}
+
 export function documentRecord({
   id,
   kind,

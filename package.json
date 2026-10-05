@@ -8,10 +8,12 @@
     "check": "biome check .",
     "check:write": "biome check --write .",
     "doctor": "bun run src/sync.ts doctor",
-    "rebuild-views": "bun run src/sync.ts rebuild-views",
+    "changes": "bun run src/sync.ts changes",
     "sync": "bun run src/sync.ts sync",
+    "tasks": "bun run src/sync.ts tasks",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
+    "vault": "bun run src/sync.ts vault",
     "verify": "bun run check && bun run typecheck && bun test"
   },
   "engines": {

@@ -1,5 +1,6 @@
 export interface CanvasWarning {
   kind: string;
+  id?: string;
   message: string;
 }
 
@@ -19,7 +20,7 @@ export interface ArchiveConfig {
   canvasBinary: string;
   canvasInstance: string;
   rawDirectory: string;
-  viewDirectory: string;
+  vaultDirectory: string;
   knownContent: string;
   timezone: string;
   downloadFiles: boolean;
@@ -41,6 +42,7 @@ export interface CanvasCourse {
   course_code?: string;
   default_view?: string;
   syllabus_body?: string;
+  created_at?: string;
 }
 
 export interface Positioned {
@@ -113,6 +115,7 @@ export interface CanvasAssignment extends Positioned {
   points_possible?: number | null;
   published?: boolean;
   submission_types?: string[];
+  quiz_id?: number | null;
 }
 
 export interface CanvasAssignmentGroup extends Positioned {}
@@ -296,32 +299,54 @@ export interface ArchiveChange {
   fields: ChangeField[];
 }
 
-export interface ChangeTotals {
-  added: number;
-  modified: number;
-  removed: number;
-}
-
 export interface ArchiveResult {
   code: string;
   data: CourseData;
   documents: ArchiveDocument[];
+  previous: { documents: Map<string, ArchiveDocument>; state: ArchiveState };
   fileEntries: FileEntry[];
   changes: ArchiveChange[];
   baseline: boolean;
 }
 
-export interface RunCourse {
-  code: string;
-  baseline: boolean;
-  summary: ChangeTotals;
-  changes: ArchiveChange[];
-  warnings: CanvasWarning[];
+export interface ChangeSnapshot {
+  title: string;
+  metadata: Record<string, unknown>;
+  content: string | null;
+  content_sha256: string;
 }
 
-export interface RunReport {
-  run_id: string;
-  started_at: string;
-  completed_at: string;
-  courses: RunCourse[];
+export interface PendingChange {
+  action: ChangeAction;
+  document_id: string;
+  course: string;
+  kind: string;
+  title: string;
+  vault_path: string;
+  source_url: string;
+  first_seen: string;
+  before: ChangeSnapshot | null;
+  after: ChangeSnapshot | null;
+}
+
+export interface PendingChanges {
+  since: string | null;
+  last_sync: string | null;
+  first_syncs: string[];
+  changes: PendingChange[];
+}
+
+export interface CanvasTask {
+  course: string;
+  kind: "assignment" | "quiz";
+  id: number;
+  assignment_id: number | null;
+  title: string;
+  url: string;
+  due_at: string | null;
+  unlock_at: string | null;
+  lock_at: string | null;
+  overrides: AssignmentDate[];
+  points: number | null;
+  submission_types: string[];
 }
