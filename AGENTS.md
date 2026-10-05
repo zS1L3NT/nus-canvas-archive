@@ -8,7 +8,7 @@ Follow [STYLE.md](STYLE.md) strictly for every code change, and put future code-
 
 ## Rules
 
-- Leave Git to the user: stage or commit only when asked, on a `claude/` branch, and never amend, reset, or push.
+- Commit finished, verified work yourself on a `claude/` branch, using the repo's emoji-prefixed message style. Ask before pushing, amending, or rewriting history.
 - Never expose, copy, log, or persist Canvas credentials. `canvas-cli` holds them in the macOS Keychain.
 - Never create, update, submit, grade, publish, or delete anything in Canvas.
 - Preserve stable identifiers, source URLs, timestamps, hashes, and warning details; diffs and indexing depend on them.
