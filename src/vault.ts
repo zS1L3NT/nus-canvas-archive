@@ -1,4 +1,4 @@
-import { constants, type Stats } from "node:fs";
+import { constants } from "node:fs";
 import { copyFile, mkdir, readdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { inboxConversationOrder, inboxMarkdown } from "./archive-helpers.ts";
@@ -25,7 +25,6 @@ export interface VaultCourse {
   rawDirectory: string;
 }
 
-// Every path is relative to the course folder inside the vault.
 export interface VaultPlan {
   code: string;
   note: string;
@@ -36,6 +35,15 @@ export interface VaultPlan {
   announcements: Map<number, string>;
   inbox: Map<number, string>;
 }
+
+const linkKinds: Record<string, string> = {
+  announcements: "announcement",
+  assignments: "assignment",
+  discussion_topics: "announcement",
+  files: "file",
+  pages: "page",
+  quizzes: "quiz",
+};
 
 const downloadedStatuses = new Set(["downloaded", "unchanged", "legacy-preserved"]);
 
@@ -157,28 +165,25 @@ export function planVault({ data, fileEntries }: VaultCourse, timezone: string):
   };
 }
 
+// Every plan path is relative to the course folder inside the vault.
+function planTarget(plan: VaultPlan, kind: string, id: unknown): string | undefined {
+  if (kind === "course" || kind === "module") return plan.note;
+  if (kind === "page") return plan.pages.get(String(id));
+  if (kind === "file") return plan.files.get(Number(id));
+  if (kind === "assignment") return plan.assignments.get(Number(id));
+  if (kind === "quiz") return plan.quizzes.get(Number(id));
+  if (kind === "announcement") return plan.announcements.get(Number(id));
+  if (kind === "inbox") return plan.inbox.get(Number(id));
+  return undefined;
+}
+
 export function vaultPathForDocument(
   plan: VaultPlan,
   documentId: string,
   metadata: Record<string, unknown> = {},
 ): string {
-  const [, kind, id = ""] = documentId.split(":");
-  const target =
-    kind === "course" || kind === "module"
-      ? plan.note
-      : kind === "page"
-        ? plan.pages.get(String(metadata.page_url))
-        : kind === "file"
-          ? plan.files.get(Number(id))
-          : kind === "assignment"
-            ? plan.assignments.get(Number(id))
-            : kind === "quiz"
-              ? plan.quizzes.get(Number(id))
-              : kind === "announcement"
-                ? plan.announcements.get(Number(id))
-                : kind === "inbox"
-                  ? plan.inbox.get(Number(id))
-                  : undefined;
+  const [, kind = "", id] = documentId.split(":");
+  const target = planTarget(plan, kind, kind === "page" ? metadata.page_url : id);
   return target ? `${plan.code}/${target}` : "";
 }
 
@@ -193,7 +198,6 @@ function frontmatter(fields: Record<string, string | number | null | undefined>)
   return `---\n${lines.join("\n")}\n---\n\n`;
 }
 
-// A link-valued property, so Obsidian's graph and backlinks connect every note to its course.
 function courseLink(plan: VaultPlan): string {
   return `[[${plan.code}/${plan.code}|${plan.code}]]`;
 }
@@ -231,17 +235,13 @@ function deadlineRows(tasks: CanvasTask[]): DeadlineRow[] {
     );
 }
 
-function taskNote(plan: VaultPlan, task: CanvasTask): string | undefined {
+export function taskNote(plan: VaultPlan, task: CanvasTask): string | undefined {
   return task.kind === "quiz" ? plan.quizzes.get(task.id) : plan.assignments.get(task.id);
 }
 
 async function cloneFile(source: string, destination: string, mtime?: string): Promise<boolean> {
-  let from: Stats;
-  try {
-    from = await stat(source);
-  } catch {
-    return false;
-  }
+  const from = await stat(source).catch(() => null);
+  if (!from) return false;
   const to = await stat(destination).catch(() => null);
   if (to && to.size === from.size && Math.abs(to.mtimeMs - from.mtimeMs) < 1) return true;
   await mkdir(path.dirname(destination), { recursive: true });
@@ -280,11 +280,7 @@ export async function writeVault(
     );
     if (!match || Number(match[1]) !== Number(data.course.id)) return undefined;
     const [, , type = "", id = ""] = match;
-    if (type === "files") return plan.files.get(Number(id));
-    if (type === "assignments") return plan.assignments.get(Number(id));
-    if (type === "quizzes") return plan.quizzes.get(Number(id));
-    if (type === "pages") return plan.pages.get(decodeURIComponent(id));
-    return plan.announcements.get(Number(id));
+    return planTarget(plan, linkKinds[type.toLowerCase()] ?? "", decodeURIComponent(id));
   };
   const markdown = (html: unknown, note: string): string => {
     const relative = (target: string) => path.posix.relative(path.posix.dirname(note), target);
@@ -318,7 +314,6 @@ export async function writeVault(
       task.kind === "quiz"
         ? data.quizzes.find((quiz) => quiz.id === task.id)
         : data.assignments.find((assignment) => assignment.id === task.id);
-    const description = source && "description" in source ? source.description : "";
     const groupDates = task.overrides
       .filter((override) => override.due_at || override.unlock_at || override.lock_at)
       .map((override) => {
@@ -346,7 +341,7 @@ export async function writeVault(
           canvas: task.url,
         }),
         groupDates.length ? `> [!info] Dates for your group\n${groupDates.join("\n")}\n\n` : "",
-        markdown(description, note),
+        markdown(source?.description, note),
       ].join(""),
       source?.updated_at,
     );
@@ -400,9 +395,8 @@ export async function writeVault(
   await write(plan.note, courseNote(data, plan, tasks, timezone, markdown));
 
   const manifestPath = path.join(rawDirectory, "vault.json");
-  const previous = await readJson<{ paths: string[] }>(manifestPath, { paths: [] });
   const current = new Set(generated.map((relative) => relative.toLocaleLowerCase("en")));
-  for (const stale of previous.paths) {
+  for (const stale of (await readJson<{ paths: string[] }>(manifestPath, { paths: [] })).paths) {
     // APFS is case-insensitive, so a case-only rename must not delete the renamed note.
     if (current.has(stale.toLocaleLowerCase("en"))) continue;
     await rm(path.join(directory, stale), { force: true });
@@ -440,16 +434,7 @@ function courseNote(
     const indent = "\t".repeat(Number(item.indent || 0));
     const title = item.title || item.type;
     if (item.type === "SubHeader") return `${indent}- **${title}**`;
-    const target =
-      item.type === "File"
-        ? plan.files.get(Number(item.content_id))
-        : item.type === "Page"
-          ? plan.pages.get(String(item.page_url))
-          : item.type === "Assignment"
-            ? plan.assignments.get(Number(item.content_id))
-            : item.type === "Quiz"
-              ? plan.quizzes.get(Number(item.content_id))
-              : undefined;
+    const target = planTarget(plan, item.type.toLowerCase(), item.type === "Page" ? item.page_url : item.content_id);
     if (target) return `${indent}- ${noteLink(title, target)}`;
     const url = item.external_url || item.html_url || item.url;
     const note = item.type === "File" ? " · Canvas only" : "";
@@ -471,20 +456,6 @@ function courseNote(
   const syllabus = markdown(data.course.syllabus_body, plan.note);
   if (syllabus.trim()) lines.push("## Syllabus", "", syllabus);
   return `${lines.join("\n").trimEnd()}\n`;
-}
-
-// Seeds only missing keys, so a setting changed inside Obsidian always wins.
-export async function writeObsidianSettings(vaultDirectory: string): Promise<void> {
-  const settingsPath = path.join(vaultDirectory, ".obsidian", "app.json");
-  const settings = await readJson<Record<string, unknown>>(settingsPath, {});
-  const defaults = {
-    // Notes are regenerated every sync, so open them for reading rather than editing.
-    defaultViewMode: "preview",
-    // Show slides, documents and spreadsheets that Obsidian cannot open itself.
-    showUnsupportedFiles: true,
-  };
-  if (Object.keys(defaults).every((key) => key in settings)) return;
-  await atomicWrite(settingsPath, `${JSON.stringify({ ...defaults, ...settings }, null, 2)}\n`);
 }
 
 export async function writeHome(

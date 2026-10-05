@@ -323,8 +323,6 @@ export interface PendingChange {
   kind: string;
   title: string;
   vault_path: string;
-  source_url: string;
-  first_seen: string;
   before: ChangeSnapshot | null;
   after: ChangeSnapshot | null;
 }

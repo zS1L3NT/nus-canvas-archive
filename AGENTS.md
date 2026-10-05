@@ -1,15 +1,14 @@
 # Agent instructions
 
-This repository syncs NUS Canvas, read-only, into an Obsidian vault at `~/NUS/Canvas` and reports every change since the user last reviewed one. Read [STYLE.md](STYLE.md) for code style; put future code-style changes there, not here.
+This repository syncs NUS Canvas, read-only, into an Obsidian vault at `~/NUS/Canvas` and reports every change since the user last reviewed one.
 
-- **Canvas update** (the user asks for a Canvas update, what changed, or a Canvas to Notion update): follow [.claude/skills/canvas-update/SKILL.md](.claude/skills/canvas-update/SKILL.md). It is also available as `/canvas-update`.
-- **Maintenance** (changing the archiver, vault layout, change report, configuration, tests or docs): follow the rest of this file.
+When the user asks for a Canvas update, what changed on Canvas, or a Canvas to Notion update, follow the [canvas-update skill](.claude/skills/canvas-update/SKILL.md) (also `/canvas-update`). Everything below is for working on the project itself; an update never changes the code, and code work never touches Notion.
 
-Do not combine the two unless the user asks for both.
+Follow [STYLE.md](STYLE.md) strictly for every code change, and put future code-style rules there rather than here.
 
-## Rules for every agent
+## Rules
 
-- Never stage, unstage, commit, amend, reset, or otherwise manage Git state. Git belongs to the user.
+- Leave Git to the user: stage or commit only when asked, on a `claude/` branch, and never amend, reset, or push.
 - Never expose, copy, log, or persist Canvas credentials. `canvas-cli` holds them in the macOS Keychain.
 - Never create, update, submit, grade, publish, or delete anything in Canvas.
 - Preserve stable identifiers, source URLs, timestamps, hashes, and warning details; diffs and indexing depend on them.
@@ -34,7 +33,7 @@ Do not combine the two unless the user asks for both.
 
 `canvas` comes from Homebrew (`brew install jjuanrivvera/canvas-cli/canvas-cli`), not from this repository.
 
-## Maintenance requirements
+## Working on the code
 
 - Keep every Canvas operation read-only. Prefer structured JSON and deterministic, atomic outputs.
 - Keep `raw/` optimized for diffing and indexing: stable ordering and IDs, normalized text, explicit metadata, content hashes. A change to how raw documents are rendered shows up as a modification of every affected document, so avoid incidental format changes.

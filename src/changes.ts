@@ -41,10 +41,8 @@ export function pendingFromRun(
   previous: { documents: Map<string, ArchiveDocument>; state: ArchiveState },
   current: Map<string, ArchiveDocument>,
   vaultPath: (documentId: string, metadata: Record<string, unknown>) => string,
-  seenAt: string,
 ): PendingChange[] {
   return changes.map((change) => {
-    const document = current.get(change.document_id) ?? previous.documents.get(change.document_id);
     const before =
       change.action === "added"
         ? null
@@ -57,8 +55,6 @@ export function pendingFromRun(
       kind: change.kind,
       title: change.title,
       vault_path: change.action === "removed" ? "" : vaultPath(change.document_id, after?.metadata ?? {}),
-      source_url: document?.source_url ?? "",
-      first_seen: seenAt,
       before,
       after,
     };
@@ -85,8 +81,6 @@ export function mergePending(existing: PendingChange[], incoming: PendingChange[
       action: !before ? "added" : !after ? "removed" : "modified",
       before,
       after,
-      first_seen: old.first_seen,
-      source_url: change.source_url || old.source_url,
     });
   }
   return [...merged.values()]
@@ -291,13 +285,14 @@ export function renderReport(
   courses: Array<{ code: string; name: string; coverage: CourseCoverage }>,
   timezone: string,
 ): string {
-  const lines = ["# Canvas changes", ""];
-  lines.push(
+  const lines = [
+    "# Canvas changes",
+    "",
     pending.since
       ? `Unreviewed since ${displayDate(pending.since, timezone)} · last sync ${displayDate(pending.last_sync, timezone)}`
       : `Last sync ${displayDate(pending.last_sync, timezone)}`,
     "",
-  );
+  ];
   const quiet: string[] = [];
   for (const course of courses) {
     const changes = pending.changes

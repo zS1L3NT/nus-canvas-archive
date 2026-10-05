@@ -65,11 +65,11 @@ import type {
 } from "./types.ts";
 import {
   planVault,
+  taskNote,
   type VaultCourse,
   type VaultPlan,
   vaultPathForDocument,
   writeHome,
-  writeObsidianSettings,
   writeVault,
 } from "./vault.ts";
 
@@ -890,7 +890,6 @@ async function buildVault(
     home.push({ data: course.data, plan });
   }
   await writeHome(config.vaultDirectory, config.timezone, home, syncedAt);
-  await writeObsidianSettings(config.vaultDirectory);
   return plans;
 }
 
@@ -932,7 +931,6 @@ async function sync(config: ArchiveConfig, argv: string[]): Promise<void> {
           const plan = plans.get(result.code);
           return plan ? vaultPathForDocument(plan, documentId, metadata) : "";
         },
-        syncedAt,
       ),
     );
   const next: PendingChanges = {
@@ -964,35 +962,30 @@ async function changes(config: ArchiveConfig, argv: string[]): Promise<void> {
 
 async function tasks(config: ArchiveConfig): Promise<void> {
   const zoned = (value: unknown) => zonedDateTime(value, config.timezone);
-  const pending = await readPending(config);
-  const courses = await loadArchive(config);
-  const output = {
-    last_sync: zoned(pending.last_sync),
-    courses: courses.map((course) => {
-      const plan = planVault(course, config.timezone);
-      return {
-        code: plan.code,
-        name: course.data.configuredCourse.name,
-        tasks: courseTasks(course.data).map((task) => {
-          const note = task.kind === "quiz" ? plan.quizzes.get(task.id) : plan.assignments.get(task.id);
-          return {
-            ...task,
-            due_at: zoned(task.due_at),
-            unlock_at: zoned(task.unlock_at),
-            lock_at: zoned(task.lock_at),
-            overrides: task.overrides.map((override) => ({
-              audience: override.audience,
-              due_at: zoned(override.due_at),
-              unlock_at: zoned(override.unlock_at),
-              lock_at: zoned(override.lock_at),
-            })),
-            note: note ? path.join(config.vaultDirectory, plan.code, note) : null,
-          };
-        }),
-      };
-    }),
-  };
-  console.log(stableJson(output));
+  const courses = (await loadArchive(config)).map((course) => {
+    const plan = planVault(course, config.timezone);
+    return {
+      code: plan.code,
+      name: course.data.configuredCourse.name,
+      tasks: courseTasks(course.data).map((task) => {
+        const note = taskNote(plan, task);
+        return {
+          ...task,
+          due_at: zoned(task.due_at),
+          unlock_at: zoned(task.unlock_at),
+          lock_at: zoned(task.lock_at),
+          overrides: task.overrides.map((override) => ({
+            audience: override.audience,
+            due_at: zoned(override.due_at),
+            unlock_at: zoned(override.unlock_at),
+            lock_at: zoned(override.lock_at),
+          })),
+          note: note ? path.join(config.vaultDirectory, plan.code, note) : null,
+        };
+      }),
+    };
+  });
+  console.log(stableJson({ last_sync: zoned((await readPending(config)).last_sync), courses }));
 }
 
 async function doctor(config: ArchiveConfig): Promise<void> {
@@ -1009,10 +1002,13 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   const [command = "sync", ...options] = argv;
   if (command === "doctor") await doctor(config);
   else if (command === "sync") await sync(config, options);
-  else if (command === "vault") {
-    const pending = await readPending(config);
-    await buildVault(config, await loadArchive(config), pending.last_sync ?? new Date().toISOString());
-  } else if (command === "changes") await changes(config, options);
+  else if (command === "vault")
+    await buildVault(
+      config,
+      await loadArchive(config),
+      (await readPending(config)).last_sync ?? new Date().toISOString(),
+    );
+  else if (command === "changes") await changes(config, options);
   else if (command === "tasks") await tasks(config);
   else throw new Error(`Unknown command: ${command}`);
 }

@@ -7,7 +7,7 @@ import { classifyWarnings, describeChange, lineDiff, mergePending } from "../src
 import { documentRecord } from "../src/lib.ts";
 import { courseTasks } from "../src/tasks.ts";
 import type { CourseData, FileEntry, PendingChange } from "../src/types.ts";
-import { planVault, vaultPathForDocument, writeObsidianSettings, writeVault } from "../src/vault.ts";
+import { planVault, vaultPathForDocument, writeVault } from "../src/vault.ts";
 
 function course(overrides: Partial<CourseData> = {}): CourseData {
   return {
@@ -153,8 +153,6 @@ function change(action: PendingChange["action"], before: string | null, after: s
     kind: "page",
     title: "Page",
     vault_path: "",
-    source_url: "",
-    first_seen: "",
     before: before === null ? null : snapshot(before),
     after: after === null ? null : snapshot(after),
   };
@@ -207,17 +205,4 @@ test("expected Canvas warnings become coverage notes with file names", () => {
     coverage.warnings.map((warning) => warning.kind),
     ["assignment-list"],
   );
-});
-
-test("Obsidian defaults are seeded without overriding the user's settings", async (context) => {
-  const vault = await mkdtemp(path.join(os.tmpdir(), "canvas-obsidian-test-"));
-  context.after(() => rm(vault, { recursive: true, force: true }));
-  await mkdir(path.join(vault, ".obsidian"));
-  await writeFile(path.join(vault, ".obsidian/app.json"), '{"defaultViewMode":"source","spellcheck":true}');
-  await writeObsidianSettings(vault);
-  assert.deepEqual(JSON.parse(await readFile(path.join(vault, ".obsidian/app.json"), "utf8")), {
-    defaultViewMode: "source",
-    showUnsupportedFiles: true,
-    spellcheck: true,
-  });
 });
