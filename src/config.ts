@@ -27,7 +27,10 @@ export async function loadConfig(projectDirectory: string): Promise<ArchiveConfi
       ? resolvePath(config.canvasBinary, projectDirectory)
       : config.canvasBinary || "canvas",
     rawDirectory: resolvePath(config.rawDirectory || "./raw", projectDirectory),
-    vaultDirectory: resolvePath(config.vaultDirectory || "./Canvas", projectDirectory),
+    vaultDirectory: resolvePath(
+      config.vaultDirectory || "~/Library/CloudStorage/OneDrive-NationalUniversityofSingapore/Y1.1 ⭐/Canvas",
+      projectDirectory,
+    ),
     courses: config.courses.map((course) => ({ ...course, knownContent: knownContent[course.code] || {} })),
   };
 }

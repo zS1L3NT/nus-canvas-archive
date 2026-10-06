@@ -2,7 +2,7 @@
   "canvasBinary": "canvas",
   "canvasInstance": "nus",
   "rawDirectory": "./raw",
-  "vaultDirectory": "./Canvas",
+  "vaultDirectory": "~/Library/CloudStorage/OneDrive-NationalUniversityofSingapore/Y1.1 ⭐/Canvas",
   "knownContent": "known-content.json",
   "timezone": "Asia/Singapore",
   "downloadFiles": true,
