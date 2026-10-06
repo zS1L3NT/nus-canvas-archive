@@ -1,6 +1,6 @@
 ---
 name: canvas-update
-description: Sync NUS Canvas into the ~/NUS/Canvas Obsidian vault, show every Canvas change since the user last reviewed one, then reconcile the Notion Task Tracker and the NUS Exams Google Calendar. Use whenever the user asks for a Canvas update, what changed on Canvas, or a Canvas to Notion update.
+description: Sync NUS Canvas into the Canvas/ Obsidian vault, show every Canvas change since the user last reviewed one, then reconcile the Notion Task Tracker and the NUS Exams Google Calendar. Use whenever the user asks for a Canvas update, what changed on Canvas, or a Canvas to Notion update.
 ---
 
 # Canvas update
@@ -9,7 +9,7 @@ Canvas is read-only. The project does the Canvas work deterministically; your jo
 
 ## 1. Sync
 
-Run `bun run sync` from the project root. It has standing authorization; do not ask first. It refreshes `raw/` and the vault at `~/NUS/Canvas`, then prints the **unseen change report**: everything that changed on Canvas since the user last reviewed an update, across however many syncs happened in between.
+Run `bun run sync` from the project root. It has standing authorization; do not ask first. It refreshes `raw/` and the vault at `Canvas/`, then prints the **unseen change report**: everything that changed on Canvas since the user last reviewed an update, across however many syncs happened in between.
 
 If the sync fails or a course errors out, say so plainly and limit every later claim to the courses that completed. `bun run changes` reprints the report without contacting Canvas.
 
@@ -20,7 +20,7 @@ If the user only wants to see changes, stop after step 2 and step 5.
 Lead the reply with the complete change list. Never drop, merge away, or summarise items into counts: the user relies on this list to not miss anything.
 
 - Group by course, then New, Updated, Removed, as the report does.
-- Render each vault path as a link to the note: `[Title](obsidian://open?path=<URL-encoded absolute path>)`, where the absolute path is `~/NUS/Canvas/<vault path>` expanded.
+- Render each vault path as a link to the note: `[Title](obsidian://open?path=<URL-encoded absolute path>)`, where the absolute path is `Canvas/<vault path>` under the project root, expanded.
 - Keep date changes and diff lines. For long diffs, describe what changed in a sentence and keep the lines that matter (new requirements, changed dates, venues, links).
 - Mention coverage notes only when they are new or affect a conclusion. Show every item under **Warnings** with its full message.
 
@@ -34,7 +34,7 @@ Skip this step only if the user asked to omit it.
 2. **NUS Journey > Task Tracker**: enumerate only current, non-archived pages, preferably through a database view or a query that excludes archived rows. Inspect each page's module relation, title, date and body. If complete enumeration is unavailable, limit the stated coverage rather than opening relation targets, which may be deleted pages.
 3. **NUS Exams** Google Calendar, when calendar access is available.
 4. `bun run tasks`: JSON of every assignment and quiz per course, with Canvas IDs, URLs, effective overrides and dates in Singapore time (`+08:00`). Classic quizzes are merged with their backing assignment (`assignment_id`). `note` is the vault note holding the full instructions.
-5. The vault notes (`~/NUS/Canvas/<COURSE>/...`) for instructions, announcements and attachments. Use `raw/<COURSE>/documents.jsonl` and `raw/<COURSE>/content/text/files/` only to resolve an ambiguity or read attachment text.
+5. The vault notes (`Canvas/<COURSE>/...`) for instructions, announcements and attachments. Use `raw/<COURSE>/documents.jsonl` and `raw/<COURSE>/content/text/files/` only to resolve an ambiguity or read attachment text.
 
 ### Required checks
 
