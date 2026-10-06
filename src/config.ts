@@ -22,9 +22,12 @@ export async function loadConfig(projectDirectory: string): Promise<ArchiveConfi
   );
   return {
     ...config,
-    canvasBinary: resolvePath(config.canvasBinary, projectDirectory),
+    // A bare command name is looked up on PATH, so a Homebrew upgrade of canvas-cli applies automatically.
+    canvasBinary: config.canvasBinary?.includes("/")
+      ? resolvePath(config.canvasBinary, projectDirectory)
+      : config.canvasBinary || "canvas",
     rawDirectory: resolvePath(config.rawDirectory || "./raw", projectDirectory),
-    viewDirectory: resolvePath(config.viewDirectory || "~/NUS Canvas", projectDirectory),
+    vaultDirectory: resolvePath(config.vaultDirectory || "~/NUS/Canvas", projectDirectory),
     courses: config.courses.map((course) => ({ ...course, knownContent: knownContent[course.code] || {} })),
   };
 }

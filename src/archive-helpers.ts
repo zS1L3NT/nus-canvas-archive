@@ -1,10 +1,10 @@
+import { formatDate } from "./lib.ts";
 import type {
-  ArchiveChange,
   AssignmentDate,
   AssignmentOverride,
   CanvasAssignment,
+  CanvasInboxConversation,
   CanvasWarning,
-  ChangeTotals,
 } from "./types.ts";
 
 export function sanitizeCanvasSecrets<T>(value: T): T {
@@ -156,12 +156,29 @@ export function forwardedMessageContent(value: unknown): string {
     .join("\n\n");
 }
 
-export function changeSummary(changes: Array<Pick<ArchiveChange, "action">>): ChangeTotals {
-  return changes.reduce(
-    (totals, change) => {
-      totals[change.action] += 1;
-      return totals;
-    },
-    { added: 0, modified: 0, removed: 0 },
-  );
+export function inboxMarkdown(conversation: CanvasInboxConversation, markdown: (html: string) => string): string {
+  const messages = Array.isArray(conversation.messages) ? conversation.messages : [];
+  const participants = Array.isArray(conversation.participants) ? conversation.participants : [];
+  const authorName = (message: (typeof messages)[number], index: number): string => {
+    const participant = participants.find(
+      (candidate) =>
+        candidate &&
+        typeof candidate === "object" &&
+        String((candidate as Record<string, unknown>).id) === String(message.author_id),
+    ) as Record<string, unknown> | undefined;
+    const author =
+      message.author?.display_name ||
+      message.author?.name ||
+      message.author?.sortable_name ||
+      participant?.display_name ||
+      participant?.name ||
+      participant?.full_name ||
+      (message.author_id ? `User ${message.author_id}` : `Message ${index + 1}`);
+    return String(author);
+  };
+  const messageLines = [...messages].reverse().map((message, index) => {
+    const timestamp = message.created_at ? ` — ${formatDate(message.created_at)}` : "";
+    return `### ${authorName(message, index)}${timestamp}\n\n${markdown(forwardedMessageContent(message))}`;
+  });
+  return messageLines.length ? messageLines.join("\n\n") : markdown(conversation.last_message || "");
 }
