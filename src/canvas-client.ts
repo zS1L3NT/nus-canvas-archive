@@ -76,6 +76,7 @@ export async function collectResource<T>(
   kind: string,
   args: string[],
   fallback: T = [] as T,
+  id?: string,
 ): Promise<T> {
   try {
     return await canvasJson(config, args);
@@ -84,7 +85,7 @@ export async function collectResource<T>(
     const message = structured
       ? `${structured.command || kind}: ${String(structured.error).trim()}`
       : raw.replace(/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?[+-]\d\d:\d\d/g, "<timestamp>");
-    warnings.push({ kind, message });
+    warnings.push(id === undefined ? { kind, message } : { kind, id, message });
     return fallback;
   }
 }
@@ -97,7 +98,7 @@ export async function collectApiResource<T>(
   fallback: T = [] as T,
 ): Promise<T> {
   try {
-    return canvasApiBody<T>(await canvasJson<unknown>(config, args));
+    return canvasApiBody<T | null>(await canvasJson<unknown>(config, args)) ?? fallback;
   } catch (error) {
     const { raw, structured } = canvasError(error);
     const message = structured

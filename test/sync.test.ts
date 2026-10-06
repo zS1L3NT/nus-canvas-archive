@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { canvasApiBody, canvasError } from "../src/canvas-client.ts";
-import { resolvePath } from "../src/config.ts";
+import { canvasApiBody, canvasError, collectApiResource } from "../src/canvas-client.ts";
+import { loadConfig, resolvePath } from "../src/config.ts";
 import {
   assignmentDates,
-  changeSummary,
   conversationBelongsToCourse,
   embeddedFileIds,
   forwardedMessageContent,
@@ -16,6 +17,7 @@ import {
   parseOptions,
   sanitizeCanvasSecrets,
 } from "../src/sync.ts";
+import type { CanvasWarning } from "../src/types.ts";
 
 test("Canvas secrets are redacted recursively without changing other values", () => {
   const input = {
@@ -39,6 +41,22 @@ test("structured Canvas errors are recovered from mixed stderr output", () => {
 test("raw Canvas API responses expose their body", () => {
   assert.deepEqual(canvasApiBody({ body: [{ id: 1 }] }), [{ id: 1 }]);
   assert.throws(() => canvasApiBody({ status_code: 200 }), /did not contain a body/);
+});
+
+test("null Canvas API lists use the fallback while nullable details remain null", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "canvas-null-list-"));
+  try {
+    const binary = path.join(directory, "canvas");
+    await writeFile(binary, "#!/bin/sh\nprintf '%s\\n' '{\"body\":null,\"status_code\":200}'\n", { mode: 0o755 });
+    const config = await loadConfig(path.resolve(import.meta.dir, ".."));
+    config.canvasBinary = binary;
+    const warnings: CanvasWarning[] = [];
+    assert.deepEqual(await collectApiResource(config, warnings, "inbox-list", inboxListArgs(93575)), []);
+    assert.equal(await collectApiResource(config, warnings, "inbox", inboxDetailArgs(42), null), null);
+    assert.deepEqual(warnings, []);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("project paths resolve consistently", () => {
@@ -159,11 +177,4 @@ test("sync options select a course and honor metadata-only mode", () => {
     extractText: false,
   });
   assert.throws(() => parseOptions(config, ["--course", "missing"]), /Unknown course: MISSING/);
-});
-
-test("change summaries count each action", () => {
-  assert.deepEqual(
-    changeSummary([{ action: "added" }, { action: "added" }, { action: "modified" }, { action: "removed" }]),
-    { added: 2, modified: 1, removed: 1 },
-  );
 });

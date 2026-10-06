@@ -1,19 +1,15 @@
 export {
+  canvasDate,
   compareStates,
+  displayDate,
   documentRecord,
   formatDate,
+  localDateTime,
   preserveIncompleteState,
   stateFromDocuments,
+  zonedDateTime,
 } from "./lib/documents.ts";
-export {
-  appendFilenameSuffix,
-  canvasAssignmentOrder,
-  canvasModuleOrder,
-  collisionSafeNames,
-  orderPrefix,
-  safeName,
-  slug,
-} from "./lib/naming.ts";
+export { byPosition, safeName, uniqueNames, vaultName } from "./lib/naming.ts";
 export {
   atomicWrite,
   readJson,
@@ -24,4 +20,4 @@ export {
   stableValue,
   writeJson,
 } from "./lib/serialization.ts";
-export { decodeHtml, extractText, htmlToMarkdown, rebaseMarkdownImages } from "./lib/text.ts";
+export { decodeHtml, extractText, htmlToMarkdown, markdownDestination } from "./lib/text.ts";
