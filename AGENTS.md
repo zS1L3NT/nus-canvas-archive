@@ -1,6 +1,6 @@
 # Agent instructions
 
-This repository syncs NUS Canvas, read-only, into an Obsidian vault at `~/NUS/Canvas` and reports every change since the user last reviewed one.
+This repository syncs NUS Canvas, read-only, into an Obsidian vault at `~/Library/CloudStorage/OneDrive-NationalUniversityofSingapore/Y1.1 ⭐/Canvas` and reports every change since the user last reviewed one.
 
 When the user asks for a Canvas update, what changed on Canvas, or a Canvas to Notion update, follow the [canvas-update skill](.claude/skills/canvas-update/SKILL.md) (also `/canvas-update`). Everything below is for working on the project itself; an update never changes the code, and code work never touches Notion.
 
@@ -29,7 +29,7 @@ Follow [STYLE.md](STYLE.md) strictly for every code change, and put future code-
 | `config.json` | Courses, directories, timezone, limits |
 | `known-content.json` | Canvas IDs to fetch directly when list endpoints are unavailable |
 | `raw/` | Generated machine data: API responses, `documents.jsonl`, manifests, `state.json`, `unseen-changes.json` |
-| `~/NUS/Canvas` | Generated vault; must stay free of implementation details |
+| `~/Library/CloudStorage/OneDrive-NationalUniversityofSingapore/Y1.1 ⭐/Canvas` | Generated vault; must stay free of implementation details |
 
 `canvas` comes from Homebrew (`brew install jjuanrivvera/canvas-cli/canvas-cli`), not from this repository.
 
