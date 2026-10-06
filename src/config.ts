@@ -27,7 +27,7 @@ export async function loadConfig(projectDirectory: string): Promise<ArchiveConfi
       ? resolvePath(config.canvasBinary, projectDirectory)
       : config.canvasBinary || "canvas",
     rawDirectory: resolvePath(config.rawDirectory || "./raw", projectDirectory),
-    vaultDirectory: resolvePath(config.vaultDirectory || "~/NUS/Canvas", projectDirectory),
+    vaultDirectory: resolvePath(config.vaultDirectory || "./Canvas", projectDirectory),
     courses: config.courses.map((course) => ({ ...course, knownContent: knownContent[course.code] || {} })),
   };
 }

@@ -4,3 +4,5 @@ raw/
 *.partial-*
 known-content.json
 /STYLE.md
+Canvas/
+Workspace/
