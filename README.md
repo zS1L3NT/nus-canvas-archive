@@ -1,6 +1,6 @@
 # NUS Canvas vault
 
-Syncs NUS Canvas, read-only, into the Obsidian vault at `vaultDirectory` (set in `config.json`), and keeps a list of every Canvas change you have not reviewed yet.
+Syncs NUS Canvas, read-only, into the Obsidian vault in the vault directory (`vaultDirectory` in `config.json`), and keeps a list of every Canvas change you have not reviewed yet.
 
 ## Daily use
 
@@ -15,10 +15,10 @@ Nothing runs in the background. Changes accumulate until you review them, so if 
 
 ## The vault
 
-Open `vaultDirectory` as a vault in Obsidian and start from `Home.md`, which lists courses and everything due next.
+Open the vault directory as a vault in Obsidian and start from `Home.md`, which lists courses and everything due next.
 
 ```
-vaultDirectory/
+<vault directory>/
   Home.md
   CS2030S/
     CS2030S.md        deadlines, modules in Canvas order, syllabus
