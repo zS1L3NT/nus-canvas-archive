@@ -28,7 +28,7 @@ export async function loadConfig(projectDirectory: string): Promise<ArchiveConfi
       : config.canvasBinary || "canvas",
     rawDirectory: resolvePath(config.rawDirectory || "./raw", projectDirectory),
     vaultDirectory: resolvePath(
-      config.vaultDirectory || "~/Library/Mobile Documents/com~apple~CloudDocs/Obsidian",
+      config.vaultDirectory || "~/Library/Mobile Documents/com~apple~CloudDocs/Obsidian/Canvas",
       projectDirectory,
     ),
     courses: config.courses.map((course) => ({ ...course, knownContent: knownContent[course.code] || {} })),
