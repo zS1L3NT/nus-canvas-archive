@@ -2,7 +2,7 @@
   "canvasBinary": "canvas",
   "canvasInstance": "nus",
   "rawDirectory": "./raw",
-  "vaultDirectory": "~/Library/Mobile Documents/com~apple~CloudDocs/Obsidian",
+  "vaultDirectory": "~/Library/Mobile Documents/com~apple~CloudDocs/Obsidian/Canvas",
   "knownContent": "known-content.json",
   "timezone": "Asia/Singapore",
   "downloadFiles": true,
