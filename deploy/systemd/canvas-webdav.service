@@ -4,7 +4,7 @@ Description=Serve the Canvas vault over WebDAV for Remotely Save
 [Service]
 # RCLONE_USER and RCLONE_PASS
 EnvironmentFile=%h/.config/nus-canvas-sync/webdav.env
-ExecStart=%h/.local/bin/rclone serve webdav @VAULT@ --addr 127.0.0.1:@PORT@
+ExecStart=%h/.local/bin/rclone serve webdav @VAULT@ --addr 127.0.0.1:@PORT@ --baseurl /Canvas
 Restart=on-failure
 RestartSec=10
 

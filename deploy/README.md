@@ -69,7 +69,7 @@ systemctl --user start canvas-fetch
 journalctl --user -u canvas-fetch -f
 ```
 
-When it finishes, your tunnel hostname in a browser should ask for the WebDAV password and then list `Home.md` and the course folders.
+When it finishes, open `https://<tunnel hostname>/Canvas/` in a browser. It should ask for the WebDAV password and then list `Home.md` and the course folders. WebDAV exposes the vault under `/Canvas/`, which is the folder Remotely Save expects for a vault named `Canvas`; the files stay in `vaultDirectory` on disk.
 
 ## 6. Connect Obsidian
 
@@ -78,7 +78,7 @@ On each device, create a **new, empty vault named `Canvas`** (on iPhone, turn of
 Then, in that vault:
 
 1. Settings → Community plugins → turn on community plugins → Browse → install and enable **Remotely Save**.
-2. Remotely Save settings → Remote service **WebDAV**: the `https://` address of your tunnel hostname, the username and password from step 5, auth type **basic**. Tap **Check connectivity**.
+2. Remotely Save settings → Remote service **WebDAV**: the `https://` address of your tunnel hostname, the username and password from step 5, auth type **basic**. Use the hostname root as the address, without `/Canvas/`; the plugin adds that folder automatically. Leave the remote base directory unset or set it to `Canvas`. Tap **Check connectivity**.
 3. Auto sync: turn on **sync on startup** (a few seconds' delay) and a schedule such as every 10 minutes. Optionally turn on sync on save for your own notes.
 4. Run the first sync on Wi-Fi; it downloads the whole vault.
 
