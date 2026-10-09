@@ -1,17 +1,21 @@
 ---
-name: canvas-update
-description: Sync NUS Canvas into the Obsidian vault, show every Canvas change since the user last reviewed one, then reconcile the Notion Task Tracker and the NUS Exams Google Calendar. Use whenever the user asks for a Canvas update, what changed on Canvas, or a Canvas to Notion update.
+name: canvas-report
+description: Show every Canvas change since the user last reviewed one, as fetched on a schedule into the Obsidian vault, then reconcile the Notion Task Tracker and the NUS Exams Google Calendar. Use whenever the user asks for a Canvas report, a Canvas update, what changed on Canvas, or a Canvas to Notion update.
 ---
 
-# Canvas update
+# Canvas report
 
-Canvas is read-only. The project does the Canvas work deterministically; your job is to present the changes and keep Notion and the exam calendar accurate.
+Canvas is read-only. The project does the Canvas work deterministically, and on the production server a systemd timer runs `bun run fetch` on a schedule; your job is to present the changes and keep Notion and the exam calendar accurate.
 
-## 1. Sync
+## 1. Report
 
-Run `bun run sync` from the project root. It has standing authorization; do not ask first. It refreshes `raw/` and the vault directory (`vaultDirectory` in `config.json`), then prints the **unseen change report**: everything that changed on Canvas since the user last reviewed an update, across however many syncs happened in between.
+Run this from the production checkout, where `systemctl --user is-active canvas-fetch.timer` prints `active`; a development checkout has its own, usually empty, `raw/`.
 
-If the sync fails or a course errors out, say so plainly and limit every later claim to the courses that completed. `bun run changes` reprints the report without contacting Canvas.
+Do not fetch first unless the user asks for a fresh fetch; the scheduled fetch keeps the archive recent. When they do, run `flock raw/.fetch.lock bun run fetch`, which waits for any running scheduled fetch. It has standing authorization; do not ask first.
+
+Note the `last_sync` value in `raw/unseen-changes.json` (`grep -m1 '"last_sync"' raw/unseen-changes.json`), then run `bun run changes`. It prints the **unseen change report**: everything that changed on Canvas since the user last reviewed a report, across however many fetches happened in between. Its header shows when the last fetch ran; if that is well past the `server.fetchSchedule` interval in `config.json`, say so, and check `systemctl --user status canvas-fetch` and `journalctl --user -u canvas-fetch -n 50` for the failure.
+
+If the last fetch failed or a course errored out, say so plainly and limit every later claim to the courses that completed.
 
 If the user only wants to see changes, stop after step 2 and step 5.
 
@@ -20,7 +24,7 @@ If the user only wants to see changes, stop after step 2 and step 5.
 Lead the reply with the complete change list. Never drop, merge away, or summarise items into counts: the user relies on this list to not miss anything.
 
 - Group by course, then New, Updated, Removed, as the report does.
-- Render each vault path as a link to the note: `[Title](obsidian://open?path=<URL-encoded absolute path>)`, where the absolute path is `<vault directory>/<vault path>` expanded.
+- Render each vault path as a link to the note: `[Title](obsidian://open?vault=Canvas&file=<URL-encoded vault path>)`. The vault is named Canvas on the user's phone and Mac, so the link opens on either.
 - Keep date changes and diff lines. For long diffs, describe what changed in a sentence and keep the lines that matter (new requirements, changed dates, venues, links).
 - Mention coverage notes only when they are new or affect a conclusion. Show every item under **Warnings** with its full message.
 
@@ -38,7 +42,7 @@ Skip this step only if the user asked to omit it.
 
 ### Required checks
 
-1. **Date accuracy.** Compare every current Notion task date with the Canvas due date and availability window, including any override returned for the user. List each discrepancy. Change a date only when the user authorized date writes for this update, and then only to dates Canvas confirms.
+1. **Date accuracy.** Compare every current Notion task date with the Canvas due date and availability window, including any override returned for the user. List each discrepancy. Change a date only when the user authorized date writes for this report, and then only to dates Canvas confirms.
 2. **Task completeness.** For each course, compare Canvas assignments and quizzes with current Task Tracker pages and list every missing task. Separately flag uncertain matches, duplicates and apparent extras. Do not resolve them by creating, changing or deleting anything.
 3. **Page information.** Keep each matched task page body a concise, current reference: submission requirements, instructions, grading or rubric details, availability restrictions, required links and attachment summaries.
 4. **Exam completeness.** Compare important one-time, high-weight examinations with **NUS Exams** and report missing, conflicting or unconfirmed events.
@@ -67,21 +71,21 @@ Skip this step only if the user asked to omit it.
 
 - Never write to Canvas.
 - Never open, search, read, edit, move or delete subpages nested in a Task Tracker page. They are the user's private handwritten notes. This does not restrict maintaining the parent page body.
-- Never create a task or change any database property without explicit permission for that specific action in this update.
-- Never delete a Notion page, property or anything outside a matched task page body without explicit approval. Absence from Canvas, a partial sync or a warning is never deletion approval.
+- Never create a task or change any database property without explicit permission for that specific action in this report.
+- Never delete a Notion page, property or anything outside a matched task page body without explicit approval. Absence from Canvas, a partial fetch or a warning is never deletion approval.
 - Deleted or archived Notion pages are out of scope entirely: never fetch them, compare them, follow their links, count them, classify them, or mention them. If a tool says a page is deleted or archived, stop processing it and do not unarchive it.
 - Never use Google Calendar for assignments, quizzes, tutorials, diagnostics, study windows or anything spanning a period; those belong in Notion. Only touch the **NUS Exams** calendar, only for important one-time, high-weight exams, only with calendar-write authorization, and only from a confirmed date and time. Never create an event from a TBA, ambiguous, inconsistent or stale source. Never delete or cancel an event without explicit approval.
-- Never hand-edit `raw/` or the vault. They change only through `bun run sync`. Do not change implementation files or `config.json` during an update.
+- Never hand-edit `raw/` or the vault. They change only through `bun run fetch`. Do not change implementation files or `config.json` during a report.
 
 ### Warnings
 
-The sync report already turns routine Canvas responses into **Coverage notes**: unused Pages or Quizzes, a restricted Files tab, unreleased files (retried every sync) and links to deleted files. These are not missing content. Anything under **Warnings** needs reading in full and interpreting in context. A warning can reflect access control or unreleased content; never conclude a task is absent when the relevant collection was incomplete. Apply the module notes' warning rules before reporting.
+The change report already turns routine Canvas responses into **Coverage notes**: unused Pages or Quizzes, a restricted Files tab, unreleased files (retried every fetch) and links to deleted files. These are not missing content. Anything under **Warnings** needs reading in full and interpreting in context. A warning can reflect access control or unreleased content; never conclude a task is absent when the relevant collection was incomplete. Apply the module notes' warning rules before reporting.
 
 ## 4. Report
 
 After the change list from step 2:
 
-1. One or two prose sentences with the sync time and the courses checked.
+1. One or two prose sentences with the last fetch time and the courses checked.
 2. A short list of material Notion or calendar actions only, such as newly released content added to a task page.
 3. **Still requiring review**: every unresolved date, uncertain match, relevant persistent warning, or other item that needs the user, including warnings intentionally kept under watch.
 4. **Audit summary**: missing, uncertain, duplicate or extra tasks by course (or that there were none); every Notion date property changed (or that none were); each task page materially rewritten and what was removed or consolidated; anything else created or updated in Notion; and confirmation that nothing was deleted.
@@ -90,4 +94,4 @@ Do not present skipped calendar work as a warning.
 
 ## 5. Mark the changes reviewed
 
-Once the change list has been shown to the user, run `bun run changes --reviewed`. The next update then starts from this point. Do not mark changes reviewed if the sync failed before producing the report.
+Once the change list has been shown to the user, run `bun run changes --reviewed --through <last_sync>` with the value noted in step 1. The next report then starts from this point. If it refuses because a scheduled fetch ran in between, run `bun run changes` again, show the user what is new, and retry with the new `last_sync`. Do not mark changes reviewed if no report was produced.
