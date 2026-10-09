@@ -246,7 +246,7 @@ async function cloneFile(source: string, destination: string, mtime?: string): P
   if (to && to.size === from.size && Math.abs(to.mtimeMs - from.mtimeMs) < 1) return true;
   await mkdir(path.dirname(destination), { recursive: true });
   await rm(destination, { force: true });
-  // APFS clones share blocks with raw/, so the vault costs almost no extra disk space.
+  // Where the filesystem supports clones (APFS, Btrfs, XFS), the vault shares blocks with raw/; elsewhere this copies.
   await copyFile(source, destination, constants.COPYFILE_FICLONE);
   await setFileMtime(destination, mtime || from.mtime);
   return true;
