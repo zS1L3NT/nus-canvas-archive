@@ -226,7 +226,7 @@ export async function extractText(
     } else if (extension === ".pdf" || contentType === "application/pdf") {
       const temporary = `${destination}.pdftotext-${process.pid}`;
       await mkdir(path.dirname(destination), { recursive: true });
-      await execFileAsync("/opt/homebrew/bin/pdftotext", ["-layout", "-enc", "UTF-8", filePath, temporary], {
+      await execFileAsync("pdftotext", ["-layout", "-enc", "UTF-8", filePath, temporary], {
         maxBuffer: 10 * 1024 * 1024,
       });
       text = await readFile(temporary, "utf8");
@@ -241,7 +241,7 @@ export async function extractText(
     } else if (extension === ".zip" || contentType.includes("zip")) {
       text = await zipText(filePath);
     } else if ([".jpg", ".jpeg", ".png", ".tif", ".tiff"].includes(extension) || contentType.startsWith("image/")) {
-      const result = await execFileAsync("/opt/homebrew/bin/tesseract", [filePath, "stdout", "-l", "eng"], {
+      const result = await execFileAsync("tesseract", [filePath, "stdout", "-l", "eng"], {
         maxBuffer: 100 * 1024 * 1024,
       });
       text = result.stdout;
