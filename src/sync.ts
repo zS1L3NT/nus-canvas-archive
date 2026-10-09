@@ -948,6 +948,10 @@ async function fetchCanvas(config: ArchiveConfig, argv: string[]): Promise<void>
 async function changes(config: ArchiveConfig, argv: string[]): Promise<void> {
   const pending = await readPending(config);
   if (argv.includes("--reviewed")) {
+    // The scheduled fetch can add changes after a report was shown; only those shown may be marked reviewed.
+    const through = argv.indexOf("--through");
+    if (through >= 0 && argv[through + 1] !== pending.last_sync)
+      throw new Error("Canvas was fetched after that report; reprint it with `bun run changes` first");
     await writeJson(pendingPath(config), {
       since: new Date().toISOString(),
       last_sync: pending.last_sync,
