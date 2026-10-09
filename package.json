@@ -9,7 +9,7 @@
     "check:write": "biome check --write .",
     "doctor": "bun run src/sync.ts doctor",
     "changes": "bun run src/sync.ts changes",
-    "sync": "bun run src/sync.ts sync",
+    "fetch": "bun run src/sync.ts fetch",
     "tasks": "bun run src/sync.ts tasks",
     "test": "bun test",
     "typecheck": "tsc --noEmit",

@@ -198,7 +198,7 @@ test("expected Canvas warnings become coverage notes with file names", () => {
   assert.deepEqual(coverage.notes, [
     "The Pages list is unavailable; pages linked from modules are still archived.",
     "The Files tab is restricted; files linked from modules and pages are still archived.",
-    "Not released yet, retried every sync: ps-06.pdf",
+    "Not released yet, retried every fetch: ps-06.pdf",
     "Linked but no longer on Canvas: notes.pdf (in Week 1)",
   ]);
   assert.deepEqual(
