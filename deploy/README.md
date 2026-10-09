@@ -14,6 +14,8 @@ exec $SHELL -l    # picks up ~/.bun/bin and ~/.local/bin
 
 `deploy/setup.sh` installs bun and canvas-cli into your home directory without sudo, installs the dependencies, and creates `config.json` from `config.example.json` if there is none. Rerun it any time.
 
+Document extraction uses npm packages for PDF, Word, RTF, OpenDocument, Office archives, and image OCR. Bun installs them with the project dependencies, including local English OCR data; no `textutil`, `pdftotext`, `tesseract` executable, or extraction-time `unzip` is needed. The setup script still uses `unzip` to install server binaries.
+
 ## 2. Configure
 
 `config.json` is gitignored because it holds personal details such as course IDs and paths. Set your courses in it, and choose the server parts under `server`:
