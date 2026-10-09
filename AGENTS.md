@@ -1,6 +1,6 @@
 # Agent instructions
 
-This repository syncs NUS Canvas, read-only, into the Obsidian vault in the vault directory (`vaultDirectory` in `config.json`) and reports every change since the user last reviewed one.
+`nus-canvas-sync` syncs NUS Canvas, read-only, into the Obsidian vault in the vault directory (`vaultDirectory` in `config.json`) and reports every change since the user last reviewed one.
 
 When the user asks for a Canvas update, what changed on Canvas, or a Canvas to Notion update, follow the [canvas-update skill](.claude/skills/canvas-update/SKILL.md) (also `/canvas-update`). Everything below is for working on the project itself; an update never changes the code, and code work never touches Notion.
 

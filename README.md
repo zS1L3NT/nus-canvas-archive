@@ -1,6 +1,6 @@
-# NUS Canvas vault
+# NUS Canvas Sync
 
-Syncs NUS Canvas, read-only, into the Obsidian vault in the vault directory (`vaultDirectory` in `config.json`), and keeps a list of every Canvas change you have not reviewed yet.
+`nus-canvas-sync` syncs NUS Canvas, read-only, into the Obsidian vault in the vault directory (`vaultDirectory` in `config.json`), and keeps a list of every Canvas change you have not reviewed yet.
 
 ## Daily use
 

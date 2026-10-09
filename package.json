@@ -1,9 +1,9 @@
 {
-  "name": "nus-canvas-cli-sync",
+  "name": "nus-canvas-sync",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Deterministic, read-only NUS Canvas corpus builder using canvas-cli.",
+  "description": "Read-only NUS Canvas sync to Obsidian, with change tracking.",
   "scripts": {
     "check": "biome check .",
     "check:write": "biome check --write .",
