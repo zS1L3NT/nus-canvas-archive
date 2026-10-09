@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -48,7 +48,8 @@ test("null Canvas API lists use the fallback while nullable details remain null"
   try {
     const binary = path.join(directory, "canvas");
     await writeFile(binary, "#!/bin/sh\nprintf '%s\\n' '{\"body\":null,\"status_code\":200}'\n", { mode: 0o755 });
-    const config = await loadConfig(path.resolve(import.meta.dir, ".."));
+    await copyFile(path.resolve(import.meta.dir, "../config.example.json"), path.join(directory, "config.json"));
+    const config = await loadConfig(directory);
     config.canvasBinary = binary;
     const warnings: CanvasWarning[] = [];
     assert.deepEqual(await collectApiResource(config, warnings, "inbox-list", inboxListArgs(93575)), []);

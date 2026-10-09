@@ -1,0 +1,14 @@
+{
+  "canvasBinary": "canvas",
+  "canvasInstance": "nus",
+  "rawDirectory": "./raw",
+  "vaultDirectory": "./vault",
+  "knownContent": "known-content.json",
+  "timezone": "Asia/Singapore",
+  "downloadFiles": true,
+  "extractText": true,
+  "maxFileBytes": 1073741824,
+  "maxTextSourceBytes": 104857600,
+  "courses": [{ "code": "CS2030S", "id": 12345, "name": "Programming Methodology II" }],
+  "server": { "fetchSchedule": "hourly", "webdavPort": 8790, "tunnel": false }
+}
