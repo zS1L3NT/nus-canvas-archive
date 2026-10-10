@@ -1,0 +1,11 @@
+[Unit]
+Description=Publish the Canvas vault WebDAV server through a Cloudflare tunnel
+After=canvas-webdav.service
+
+[Service]
+ExecStart=%h/.local/bin/cloudflared tunnel --no-autoupdate run --token-file %h/.config/nus-canvas-sync/tunnel-token
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

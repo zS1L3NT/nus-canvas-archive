@@ -13,7 +13,7 @@ test("stable JSON recursively sorts object keys", () => {
 });
 
 test("JSON files round-trip through atomic writes", async (context) => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "canvas-archive-test-"));
+  const directory = await mkdtemp(path.join(os.tmpdir(), "nus-canvas-sync-test-"));
   context.after(() => rm(directory, { recursive: true, force: true }));
   const destination = path.join(directory, "nested", "value.json");
 
@@ -25,7 +25,7 @@ test("JSON files round-trip through atomic writes", async (context) => {
 });
 
 test("unchanged atomic writes preserve content and apply the source mtime", async (context) => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "canvas-archive-test-"));
+  const directory = await mkdtemp(path.join(os.tmpdir(), "nus-canvas-sync-test-"));
   context.after(() => rm(directory, { recursive: true, force: true }));
   const destination = path.join(directory, "value.md");
   const mtime = "2025-04-03T12:34:56.000Z";

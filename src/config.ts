@@ -15,7 +15,7 @@ export function resolvePath(value: unknown, baseDirectory: string): string {
 
 export async function loadConfig(projectDirectory: string): Promise<ArchiveConfig> {
   const config = await readJson<RawArchiveConfig | null>(path.join(projectDirectory, "config.json"), null);
-  if (!config) throw new Error("Unable to read config.json");
+  if (!config) throw new Error("Unable to read config.json; copy config.example.json to start one");
   const knownContent = await readJson<Record<string, KnownContent>>(
     resolvePath(config.knownContent || "known-content.json", projectDirectory),
     {},
@@ -27,10 +27,7 @@ export async function loadConfig(projectDirectory: string): Promise<ArchiveConfi
       ? resolvePath(config.canvasBinary, projectDirectory)
       : config.canvasBinary || "canvas",
     rawDirectory: resolvePath(config.rawDirectory || "./raw", projectDirectory),
-    vaultDirectory: resolvePath(
-      config.vaultDirectory || "~/Library/Mobile Documents/com~apple~CloudDocs/Obsidian/Canvas",
-      projectDirectory,
-    ),
+    vaultDirectory: resolvePath(config.vaultDirectory || "./vault", projectDirectory),
     courses: config.courses.map((course) => ({ ...course, knownContent: knownContent[course.code] || {} })),
   };
 }

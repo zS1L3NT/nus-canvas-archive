@@ -1,12 +1,14 @@
-import { execFile } from "node:child_process";
-import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
-import os from "node:os";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import english from "@tesseract.js-data/eng";
+import { strFromU8, unzipSync } from "fflate";
+import parseRtf from "rtf-parser";
+import { createWorker } from "tesseract.js";
+import { extractText as pdfText } from "unpdf";
+import WordExtractor from "word-extractor";
 import type { TextExtraction } from "../types.ts";
 import { atomicWrite, sha256 } from "./serialization.ts";
-
-const execFileAsync = promisify(execFile);
 
 const entityMap: Record<string, string> = {
   amp: "&",
@@ -154,54 +156,59 @@ function naturalCompare(left: string, right: string): number {
   return left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" });
 }
 
-async function officeXmlText(filePath: string, extension: string): Promise<string> {
-  const { stdout: listing } = await execFileAsync("/usr/bin/unzip", ["-Z1", filePath], { maxBuffer: 50 * 1024 * 1024 });
-  const entries = listing.split("\n").filter(Boolean).sort(naturalCompare);
-  const selected =
-    extension === ".pptx"
-      ? entries.filter((entry) => /^ppt\/(slides|notesSlides)\/.*\.xml$/.test(entry))
-      : entries.filter((entry) => /^xl\/(sharedStrings\.xml|worksheets\/.*\.xml)$/.test(entry));
-  if (!selected.length) return "";
-  const { stdout } = await execFileAsync("/usr/bin/unzip", ["-p", filePath, ...selected], {
-    maxBuffer: 200 * 1024 * 1024,
+function archive(data: Uint8Array, select: (entry: string) => boolean): Record<string, Uint8Array> {
+  let size = 0;
+  return unzipSync(data, {
+    filter(entry) {
+      if (!select(entry.name)) return false;
+      size += entry.originalSize;
+      if (size > 200 * 1024 * 1024) throw new Error("Selected archive content exceeds 200 MiB");
+      return true;
+    },
   });
-  if (extension === ".pptx") return xmlText(stdout, /<a:t(?:\s[^>]*)?>([\s\S]*?)<\/a:t>/g);
-  return xmlText(stdout, /<(?:t|v)(?:\s[^>]*)?>([\s\S]*?)<\/(?:t|v)>/g);
 }
 
-async function zipText(filePath: string): Promise<string> {
-  const { stdout: listing } = await execFileAsync("/usr/bin/unzip", ["-Z1", filePath], { maxBuffer: 50 * 1024 * 1024 });
-  const entries = listing
-    .split("\n")
-    .filter((entry) => entry && !entry.endsWith("/") && !entry.startsWith("/") && !entry.split("/").includes(".."))
-    .sort(naturalCompare);
+function officeXmlText(data: Uint8Array, extension: string): string {
+  const files = archive(data, (entry) =>
+    extension === ".pptx"
+      ? /^ppt\/(slides|notesSlides)\/.*\.xml$/.test(entry)
+      : /^xl\/(sharedStrings\.xml|worksheets\/.*\.xml)$/.test(entry),
+  );
+  const xml = Object.entries(files)
+    .sort(([left], [right]) => naturalCompare(left, right))
+    .map(([, data]) => strFromU8(data))
+    .join("");
+  return xmlText(
+    xml,
+    extension === ".pptx" ? /<a:t(?:\s[^>]*)?>([\s\S]*?)<\/a:t>/g : /<(?:t|v)(?:\s[^>]*)?>([\s\S]*?)<\/(?:t|v)>/g,
+  );
+}
+
+function zipText(data: Uint8Array): string {
+  const entries: string[] = [];
+  const files = archive(data, (entry) => {
+    if (entry.endsWith("/") || entry.startsWith("/") || entry.split("/").includes("..")) return false;
+    entries.push(entry);
+    const extension = path.extname(entry).toLowerCase();
+    return zipTextExtensions.has(extension) || extension === ".xlsx" || extension === ".pptx";
+  });
+  entries.sort(naturalCompare);
   const sections = [`Archive contents:\n${entries.join("\n")}`];
   for (const entry of entries) {
+    const data = files[entry];
+    if (!data) continue;
     const extension = path.extname(entry).toLowerCase();
-    if (zipTextExtensions.has(extension)) {
-      const { stdout } = await execFileAsync("/usr/bin/unzip", ["-p", filePath, entry], {
-        maxBuffer: 100 * 1024 * 1024,
-      });
-      sections.push(`## ${entry}\n\n${stdout.trim()}`);
-    } else if (extension === ".xlsx" || extension === ".pptx") {
-      const { stdout } = await execFileAsync("/usr/bin/unzip", ["-p", filePath, entry], {
-        encoding: "buffer",
-        maxBuffer: 200 * 1024 * 1024,
-      });
-      const temporary = path.join(
-        os.tmpdir(),
-        `canvas-cli-extract-${process.pid}-${sha256(entry).slice(0, 12)}${extension}`,
-      );
-      await writeFile(temporary, stdout);
-      try {
-        const extracted = await officeXmlText(temporary, extension);
-        if (extracted) sections.push(`## ${entry}\n\n${extracted}`);
-      } finally {
-        await unlink(temporary);
-      }
+    if (zipTextExtensions.has(extension)) sections.push(`## ${entry}\n\n${strFromU8(data).trim()}`);
+    else {
+      const text = officeXmlText(data, extension);
+      if (text) sections.push(`## ${entry}\n\n${text}`);
     }
   }
   return sections.join("\n\n");
+}
+
+function rtfText(node: import("rtf-parser").RtfNode): string {
+  return node.value ?? node.content?.map((child) => rtfText(child) + (child.content ? "\n" : "")).join("") ?? "";
 }
 
 export async function extractText(
@@ -224,27 +231,38 @@ export async function extractText(
     } else if (extension === ".html" || extension === ".htm") {
       text = htmlToMarkdown(await readFile(filePath, "utf8"));
     } else if (extension === ".pdf" || contentType === "application/pdf") {
-      const temporary = `${destination}.pdftotext-${process.pid}`;
-      await mkdir(path.dirname(destination), { recursive: true });
-      await execFileAsync("/opt/homebrew/bin/pdftotext", ["-layout", "-enc", "UTF-8", filePath, temporary], {
-        maxBuffer: 10 * 1024 * 1024,
-      });
-      text = await readFile(temporary, "utf8");
-      await unlink(temporary);
-    } else if ([".doc", ".docx", ".rtf", ".odt"].includes(extension)) {
-      const result = await execFileAsync("/usr/bin/textutil", ["-convert", "txt", "-stdout", filePath], {
-        maxBuffer: 200 * 1024 * 1024,
-      });
-      text = result.stdout;
+      text = (await pdfText(new Uint8Array(await readFile(filePath)), { mergePages: true })).text;
+    } else if (extension === ".doc" || extension === ".docx") {
+      const document = await new WordExtractor().extract(await readFile(filePath));
+      const options = { filterUnicode: false };
+      text = [
+        document.getBody(options),
+        document.getHeaders(options),
+        document.getFootnotes(options),
+        document.getEndnotes(options),
+        document.getTextboxes(options),
+      ]
+        .filter((value) => value.trim())
+        .join("\n");
+    } else if (extension === ".rtf") {
+      text = rtfText(await promisify(parseRtf.string)(await readFile(filePath, "latin1")));
+    } else if (extension === ".odt") {
+      const files = archive(await readFile(filePath), (entry) => entry === "content.xml");
+      text = xmlText(
+        strFromU8(files["content.xml"] ?? new Uint8Array()),
+        /<text:(?:p|h)\b[^>]*>([\s\S]*?)<\/text:(?:p|h)>/g,
+      );
     } else if (extension === ".pptx" || extension === ".xlsx") {
-      text = await officeXmlText(filePath, extension);
+      text = officeXmlText(await readFile(filePath), extension);
     } else if (extension === ".zip" || contentType.includes("zip")) {
-      text = await zipText(filePath);
+      text = zipText(await readFile(filePath));
     } else if ([".jpg", ".jpeg", ".png", ".tif", ".tiff"].includes(extension) || contentType.startsWith("image/")) {
-      const result = await execFileAsync("/opt/homebrew/bin/tesseract", [filePath, "stdout", "-l", "eng"], {
-        maxBuffer: 100 * 1024 * 1024,
-      });
-      text = result.stdout;
+      const worker = await createWorker("eng", 1, { langPath: english.langPath, gzip: true, cacheMethod: "none" });
+      try {
+        text = (await worker.recognize(filePath)).data.text;
+      } finally {
+        await worker.terminate();
+      }
     } else {
       return { status: "unsupported", bytes: 0 };
     }

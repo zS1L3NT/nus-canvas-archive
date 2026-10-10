@@ -1,15 +1,15 @@
 {
-  "name": "nus-canvas-cli-sync",
+  "name": "nus-canvas-sync",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Deterministic, read-only NUS Canvas corpus builder using canvas-cli.",
+  "description": "Read-only NUS Canvas sync to Obsidian, with change tracking.",
   "scripts": {
     "check": "biome check .",
     "check:write": "biome check --write .",
     "doctor": "bun run src/sync.ts doctor",
     "changes": "bun run src/sync.ts changes",
-    "sync": "bun run src/sync.ts sync",
+    "fetch": "bun run src/sync.ts fetch",
     "tasks": "bun run src/sync.ts tasks",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
@@ -23,5 +23,13 @@
     "@biomejs/biome": "2.5.8",
     "@types/bun": "1.3.14",
     "typescript": "7.0.2"
+  },
+  "dependencies": {
+    "@tesseract.js-data/eng": "1.0.0",
+    "fflate": "0.8.3",
+    "rtf-parser": "1.3.3",
+    "tesseract.js": "7.0.0",
+    "unpdf": "1.8.1",
+    "word-extractor": "1.0.4"
   }
 }

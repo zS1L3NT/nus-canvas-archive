@@ -905,7 +905,7 @@ function report(config: ArchiveConfig, pending: PendingChanges, courses: Archive
   );
 }
 
-async function sync(config: ArchiveConfig, argv: string[]): Promise<void> {
+async function fetchCanvas(config: ArchiveConfig, argv: string[]): Promise<void> {
   const options = parseOptions(config, argv);
   const syncedAt = new Date().toISOString();
   const results: ArchiveResult[] = [];
@@ -948,6 +948,10 @@ async function sync(config: ArchiveConfig, argv: string[]): Promise<void> {
 async function changes(config: ArchiveConfig, argv: string[]): Promise<void> {
   const pending = await readPending(config);
   if (argv.includes("--reviewed")) {
+    // The scheduled fetch can add changes after a report was shown; only those shown may be marked reviewed.
+    const through = argv.indexOf("--through");
+    if (through >= 0 && argv[through + 1] !== pending.last_sync)
+      throw new Error("Canvas was fetched after that report; reprint it with `bun run changes` first");
     await writeJson(pendingPath(config), {
       since: new Date().toISOString(),
       last_sync: pending.last_sync,
@@ -999,9 +1003,9 @@ async function doctor(config: ArchiveConfig): Promise<void> {
 
 export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
   const config = await loadConfig(projectDirectory);
-  const [command = "sync", ...options] = argv;
+  const [command = "fetch", ...options] = argv;
   if (command === "doctor") await doctor(config);
-  else if (command === "sync") await sync(config, options);
+  else if (command === "fetch") await fetchCanvas(config, options);
   else if (command === "vault")
     await buildVault(
       config,

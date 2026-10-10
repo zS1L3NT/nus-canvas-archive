@@ -1,0 +1,10 @@
+[Unit]
+Description=Fetch NUS Canvas into raw/ and the vault
+
+[Service]
+Type=oneshot
+WorkingDirectory=@REPO@
+Environment=PATH=%h/.bun/bin:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+# Waits for a manual `flock raw/.fetch.lock bun run fetch` instead of racing it.
+ExecStart=/usr/bin/flock @REPO@/raw/.fetch.lock bun run fetch
+Nice=10

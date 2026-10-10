@@ -275,7 +275,7 @@ export function classifyWarnings(
     else if (warning.kind === "file" && /does not exist/i.test(message)) missing.set(id ?? message, label());
     else unexpected.push(warning);
   }
-  if (unreleased.size) notes.add(`Not released yet, retried every sync: ${[...unreleased.values()].join("; ")}`);
+  if (unreleased.size) notes.add(`Not released yet, retried every fetch: ${[...unreleased.values()].join("; ")}`);
   if (missing.size) notes.add(`Linked but no longer on Canvas: ${[...missing.values()].join("; ")}`);
   return { notes: [...notes], warnings: unexpected };
 }
@@ -289,8 +289,8 @@ export function renderReport(
     "# Canvas changes",
     "",
     pending.since
-      ? `Unreviewed since ${displayDate(pending.since, timezone)} · last sync ${displayDate(pending.last_sync, timezone)}`
-      : `Last sync ${displayDate(pending.last_sync, timezone)}`,
+      ? `Unreviewed since ${displayDate(pending.since, timezone)} · last fetch ${displayDate(pending.last_sync, timezone)}`
+      : `Last fetch ${displayDate(pending.last_sync, timezone)}`,
     "",
   ];
   const quiet: string[] = [];
@@ -309,7 +309,7 @@ export function renderReport(
       continue;
     }
     lines.push(`## ${course.code} · ${course.name}`, "");
-    if (firstSync) lines.push("First sync: everything was archived as a baseline.", "");
+    if (firstSync) lines.push("First fetch: everything was archived as a baseline.", "");
     for (const [action, heading] of [
       ["added", "New"],
       ["modified", "Updated"],

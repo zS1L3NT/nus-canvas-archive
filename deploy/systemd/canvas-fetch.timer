@@ -1,0 +1,10 @@
+[Unit]
+Description=Fetch NUS Canvas on a schedule
+
+[Timer]
+OnCalendar=@SCHEDULE@
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
