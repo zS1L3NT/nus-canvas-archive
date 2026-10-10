@@ -95,7 +95,7 @@ cd ~/nus-canvas-sync
 claude
 ```
 
-Ask for a **Canvas report** or run `/canvas-report`. Claude Code on the server must be logged in to the claude.ai account that has the Notion and Google Calendar connectors; check with `/mcp`.
+Ask for a **Canvas report** or run `/canvas-report`. In T3 Code with Codex, open the production checkout and invoke `$canvas-report`; the shared skill is in `.agents/skills/canvas-report/SKILL.md`. Connect Notion and Google Calendar in the agent you use. For Claude Code, log in to the claude.ai account with those connectors and check with `/mcp`; those account connectors do not carry over to other agents.
 
 Useful checks:
 
