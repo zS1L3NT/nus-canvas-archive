@@ -8,11 +8,11 @@ It is meant to run on an always-on Debian server: a systemd timer fetches Canvas
 
 Open this folder on the server in Claude Code and ask for a **Canvas report**, or run `/canvas-report`. Claude will:
 
-1. show you every change since your last report: new and edited announcements, assignments, quizzes, pages, files and messages, with date changes and line diffs;
+1. perform a fresh, read-only fetch, then show you every change since your last completed report or your explicitly requested start time: new and edited announcements, assignments, quizzes, pages, files and messages, with date changes and line diffs;
 2. reconcile your Notion Task Tracker and the NUS Exams calendar;
 3. mark the changes as reviewed.
 
-The report uses the latest scheduled fetch; ask for a fresh fetch if you need one. Changes accumulate until you review them, so nothing fetched between reports is lost.
+Every requested report begins with a fresh fetch. Hourly scheduled fetches keep the Obsidian vault current between reports. Fetching never advances the report cursor; recorded changes remain available until and after review.
 
 ## The vault
 
@@ -43,7 +43,7 @@ bun run fetch                   # read Canvas, update raw/ and the vault, print 
 bun run fetch --course CS2030S  # one course
 bun run fetch --metadata-only   # skip file downloads
 bun run changes                 # reprint unseen changes without contacting Canvas
-bun run changes --reviewed      # mark them reviewed
+bun run changes --reviewed --through '<report-end-timestamp>' # acknowledge the report
 bun run tasks                   # JSON of every assignment and quiz with Singapore-time dates
 bun run vault                   # rebuild the vault from raw/ without contacting Canvas
 bun run doctor
@@ -66,3 +66,24 @@ bun run doctor
 ## Raw archive
 
 `raw/` is machine data for diffing and AI indexing: lossless API responses, `documents.jsonl` (normalized records), `file-manifest.json`, extracted text under `content/text/`, `state.json`, and `unseen-changes.json`. Grades, submissions, quiz attempts and rosters are deliberately not collected. Inbox collection is limited to each course's conversations and never marks them read.
+
+## Report windows
+
+Scheduled and report-triggered fetches retain timestamped transitions under `raw/history/`. `bun run changes` reports changes since the last reviewed report; each transition remains visible even if a later fetch reverses it. Fetching and printing a report do not advance the review cursor.
+
+Choose a start time with an explicit timezone:
+
+```sh
+bun run changes --since '2026-10-06T12:00:00+08:00'
+bun run changes --since '2026-10-06T12:00:00+08:00' --through '2026-10-10T08:00:00Z'
+```
+
+Explicit windows include both endpoints and use the Canvas update time saved with each transition. Removals and changes without a usable or changed Canvas timestamp use detection time. Default reports use detection time so late discoveries are not lost after review. A historical endpoint includes only data collected by that endpoint. Resource identifiers, source URLs, before/after snapshots, hashes, coverage notes and warnings remain in the retained fetch records. Reports use the coverage recorded at their selected end. A failed fetch retains successfully recorded course transitions and identifies its incomplete coverage.
+
+After reading the complete report, acknowledge its exact end timestamp:
+
+```sh
+bun run changes --reviewed --through '<report-end-timestamp>'
+```
+
+Acknowledgement refuses if a newer collection has been recorded. It advances a separate cursor without deleting history, so explicit historical reports remain repeatable. History starts fresh with the first fetch after deployment: existing course archives establish baselines, and old pending differences are not imported. Requests before retained history begins fail explicitly; a new course's first fetch is a baseline, not reconstructed history. Offline vault generation does not change history or the review cursor.

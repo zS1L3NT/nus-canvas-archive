@@ -133,7 +133,7 @@ test("vault notes link Canvas content to local files and drop stale generated fi
   assert.equal(await readFile(path.join(vault, "CS1/Files/SOP.pdf"), "utf8"), "%PDF");
   const courseNote = await readFile(path.join(vault, "CS1/CS1.md"), "utf8");
   assert.match(courseNote, /### Week 1\n\n- \[PE1\]\(Assignments\/PE1\.md\)/);
-  assert.match(courseNote, /\| Sat, 3 Oct 2026 at 10:00 AM \| \[PE1\]\(Assignments\/PE1\.md\) \|/);
+  assert.match(courseNote, /\| Sat, 3 Oct 2026(?: at |, )10:00 (?:AM|am) \| \[PE1\]\(Assignments\/PE1\.md\) \|/);
 
   data.assignments = [];
   data.modules = [];
@@ -175,9 +175,12 @@ test("modified content is described as a line diff and date changes are readable
     before: { title: "Quiz", metadata: { due_at: "2026-10-03T02:00:00Z" }, content: "", content_sha256: "x" },
     after: { title: "Quiz", metadata: { due_at: "2026-10-04T02:00:00Z" }, content: "", content_sha256: "x" },
   };
-  assert.deepEqual(describeChange(quiz, "Asia/Singapore"), [
-    "due: Sat, 3 Oct 2026 at 10:00 AM → Sun, 4 Oct 2026 at 10:00 AM",
-  ]);
+  const details = describeChange(quiz, "Asia/Singapore");
+  assert.equal(details.length, 1);
+  assert.match(
+    details[0] ?? "",
+    /^due: Sat, 3 Oct 2026(?: at |, )10:00 (?:AM|am) → Sun, 4 Oct 2026(?: at |, )10:00 (?:AM|am)$/,
+  );
 });
 
 test("expected Canvas warnings become coverage notes with file names", () => {

@@ -29,6 +29,7 @@ function snapshot(document?: ArchiveDocument, state?: ArchiveState[string]): Cha
   if (!source) return null;
   return {
     title: source.title,
+    updated_at: source.updated_at,
     metadata: source.metadata,
     // Extracted file text is too large to keep; file changes are described by hash and size.
     content: document && document.kind !== "file" ? document.content : null,
@@ -50,6 +51,7 @@ export function pendingFromRun(
     const after = change.action === "removed" ? null : snapshot(current.get(change.document_id));
     return {
       action: change.action,
+      source_url: current.get(change.document_id)?.source_url ?? previous.state[change.document_id]?.source_url,
       document_id: change.document_id,
       course: change.document_id.split(":")[0] ?? "",
       kind: change.kind,
@@ -59,6 +61,17 @@ export function pendingFromRun(
       after,
     };
   });
+}
+
+// Canvas sometimes leaves updated_at unchanged for availability changes; those use detection time.
+export function changeTime(change: PendingChange): string | undefined {
+  const source = change.after?.updated_at;
+  if (source && (change.action === "added" || source !== change.before?.updated_at)) {
+    const time = new Date(source);
+    if (Number.isFinite(time.getTime()) && (!change.observed_at || time.toISOString() <= change.observed_at))
+      return time.toISOString();
+  }
+  return change.observed_at;
 }
 
 // Folds a new run into the unseen list, always comparing against the state at the last review.
@@ -289,8 +302,9 @@ export function renderReport(
     "# Canvas changes",
     "",
     pending.since
-      ? `Unreviewed since ${displayDate(pending.since, timezone)} · last fetch ${displayDate(pending.last_sync, timezone)}`
+      ? `Changes since ${displayDate(pending.since, timezone)} · last fetch ${displayDate(pending.last_sync, timezone)}`
       : `Last fetch ${displayDate(pending.last_sync, timezone)}`,
+    `Report through: ${pending.last_sync ?? "unavailable"}`,
     "",
   ];
   const quiet: string[] = [];
@@ -321,7 +335,12 @@ export function renderReport(
       for (const change of matching) {
         const where = change.vault_path ? ` → \`${change.vault_path}\`` : "";
         const detail = action === "added" ? addedDetail(change, timezone) : "";
-        lines.push(`- ${kindLabels[change.kind] ?? change.kind} **${change.title.trim()}**${detail}${where}`);
+        const time = changeTime(change);
+        const updated = time && time !== change.observed_at ? ` · Canvas updated ${displayDate(time, timezone)}` : "";
+        const observed = change.observed_at ? ` · observed ${displayDate(change.observed_at, timezone)}` : "";
+        lines.push(
+          `- ${kindLabels[change.kind] ?? change.kind} **${change.title.trim()}**${detail}${updated}${observed}${where}`,
+        );
         if (action === "added" && ["announcement", "inbox"].includes(change.kind) && change.after?.content)
           lines.push(`  > ${excerpt(change.after.content)}`);
         if (action !== "modified") continue;

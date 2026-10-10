@@ -9,7 +9,7 @@ The project used to run only on the user's Mac. `/canvas-update` synced Canvas o
 Decisions the user made:
 
 - **Only the deterministic fetch runs on a schedule.** A systemd user timer runs `bun run fetch`. No AI runs in the background, and nothing touches Notion or Google Calendar unattended.
-- **The report runs on demand.** `/canvas-report` replaces `/canvas-update`. It shows every change since the user last reviewed a report, then runs the original canvas-to-Notion workflow unchanged, with the same standing permissions: matched task page bodies may be rewritten, while date writes, new tasks and calendar writes still need per-report approval. It does not fetch first unless asked.
+- **The report runs on demand.** `/canvas-report` replaces `/canvas-update`. It shows every change since the user last reviewed a report, then runs the original canvas-to-Notion workflow unchanged, with the same standing permissions: matched task page bodies may be rewritten, while date writes, new tasks and calendar writes still need per-report approval. Every report request starts with a locked, fresh, read-only fetch; scheduled fetches keep the vault current between reports.
 - **The vault is served from the server.** There is no paid Obsidian Sync and no cloud drive. `rclone serve webdav` listens on localhost, a Cloudflare tunnel can publish it, and the Remotely Save community plugin syncs the user's devices on startup and on a schedule. Each device's vault is named `Canvas`.
   - The user wants the address public rather than behind a VPN, so with the tunnel on, WebDAV basic auth over HTTPS is the only protection.
   - Remotely Save's own encryption is unusable because the server writes plain files.
@@ -20,7 +20,7 @@ Decisions the user made:
 ## What changed in the code
 
 - The `sync` command is now `fetch` (`bun run fetch`; `fetchCanvas` in `src/sync.ts`). User-facing report wording says "fetch". The raw field `unseen-changes.json#last_sync` keeps its name deliberately, so the raw format does not change.
-- `bun run changes --reviewed --through <last_sync>` refuses when a fetch ran after the report was shown, so a scheduled fetch cannot cause unseen changes to be marked reviewed. The skill always passes `--through`; plain `--reviewed` still works for a person at a terminal.
+- `bun run changes --reviewed --through <last_sync>` refuses when a fetch ran after the report was shown, so a scheduled fetch cannot cause unseen changes to be marked reviewed. The skill always passes `--through`; acknowledgement requires that exact report endpoint. Retained timestamped history and the separate review cursor are implemented on `ai/report-history`. The first fetch after deployment starts fresh baselines without importing old pending differences. Explicit dates use saved Canvas update times, falling back to detection time where unavailable; default reports include all newly detected transitions.
 - `config.json` is untracked. `loadConfig` tells you to copy `config.example.json` when it is missing, and `deploy/setup.sh` does that copy itself. `vaultDirectory` defaults to `./vault` (gitignored), so every checkout has its own vault next to its own `raw/`.
 - `src/vault.ts` already used `COPYFILE_FICLONE`, which falls back to a plain copy on filesystems without clones; only the comment and README changed.
 - The skill moved to `.claude/skills/canvas-report/SKILL.md`. Report links use `obsidian://open?vault=Canvas&file=...`, because absolute server paths do not open on a phone.

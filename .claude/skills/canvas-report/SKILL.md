@@ -11,9 +11,15 @@ Canvas is read-only. The project does the Canvas work deterministically, and on 
 
 Run this from the production checkout, where `systemctl --user is-active canvas-fetch.timer` prints `active`; a development checkout has its own, usually empty, `raw/`.
 
-Do not fetch first unless the user asks for a fresh fetch; the scheduled fetch keeps the archive recent. When they do, run `flock raw/.fetch.lock bun run fetch`, which waits for any running scheduled fetch. It has standing authorization; do not ask first.
+Every report request starts with a fresh, read-only fetch: run `flock raw/.fetch.lock bun run fetch`, which waits for any running scheduled fetch. This has standing authorization; do not ask first. Hourly scheduled fetches keep the Obsidian vault current between reports. The requested start time selects the history window; the fresh fetch supplies the current endpoint. Do not acknowledge a report if this refresh fails; state the failure and clearly label any report of previously collected data.
 
-Note the `last_sync` value in `raw/unseen-changes.json` (`grep -m1 '"last_sync"' raw/unseen-changes.json`), then run `bun run changes`. It prints the **unseen change report**: everything that changed on Canvas since the user last reviewed a report, across however many fetches happened in between. Its header shows when the last fetch ran; if that is well past the `server.fetchSchedule` interval in `config.json`, say so, and check `systemctl --user status canvas-fetch` and `journalctl --user -u canvas-fetch -n 50` for the failure.
+Run `bun run changes` for every recorded transition since the last reviewed report. If the user supplies a start time, use `bun run changes --since <ISO-8601 timestamp with timezone>`; interpret an unqualified local time in Singapore time. For example, 6 October 2026 at noon is `2026-10-06T12:00:00+08:00`. Explicit start times are inclusive. An optional `--through <timestamp>` selects an earlier end; the end is inclusive. The default review cursor is exclusive, so already reviewed events are not repeated.
+
+Record the exact timestamp printed as `Report through:`; the human-readable header shows the same time in Singapore time. History preserves each transition, its Canvas timestamp and its detection time, including reversals; list repeated changes to the same resource separately. Explicit date windows use the saved Canvas update time when usable; removals and changes with missing or unchanged Canvas timestamps use detection time. Default reports include every newly detected transition since review, including late discoveries. Historical endpoints include only data collected by that endpoint. Do not use current Canvas `updated_at` timestamps to reconstruct missing history.
+
+If selectable history is unavailable or the requested start predates its coverage, explain the limitation plainly. Do not substitute a timestamp-filtered current snapshot or acknowledge an incomplete historical report. History starts fresh at the first fetch after deployment; old pending differences are not imported. The first collection of each course establishes a baseline, not a historical change list.
+
+The report uses the course coverage recorded at its selected end. If the latest fetch did not complete, it explicitly limits coverage to recorded course collections. If the last fetch is well past `server.fetchSchedule`, say so, and on production check `systemctl --user status canvas-fetch` and `journalctl --user -u canvas-fetch -n 50` for the failure.
 
 If the last fetch failed or a course errored out, say so plainly and limit every later claim to the courses that completed.
 
@@ -94,4 +100,4 @@ Do not present skipped calendar work as a warning.
 
 ## 5. Mark the changes reviewed
 
-Once the change list has been shown to the user, run `bun run changes --reviewed --through <last_sync>` with the value noted in step 1. The next report then starts from this point. If it refuses because a scheduled fetch ran in between, run `bun run changes` again, show the user what is new, and retry with the new `last_sync`. Do not mark changes reviewed if no report was produced.
+Once the complete change list has been shown to the user, run `bun run changes --reviewed --through <last_sync>` with the report end timestamp noted in step 1. This advances the default review cursor and never deletes history. An intentionally historical report ending before the current cursor must not move the cursor backwards. The next report then starts from this point. If it refuses because a scheduled fetch ran in between, run `bun run changes` again, show the user what is new, and retry with the new `last_sync`. Do not mark changes reviewed if no report was produced.
