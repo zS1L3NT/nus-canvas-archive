@@ -66,3 +66,24 @@ bun run doctor
 ## Raw archive
 
 `raw/` is machine data for diffing and AI indexing: lossless API responses, `documents.jsonl` (normalized records), `file-manifest.json`, extracted text under `content/text/`, `state.json`, and `unseen-changes.json`. Grades, submissions, quiz attempts and rosters are deliberately not collected. Inbox collection is limited to each course's conversations and never marks them read.
+
+## Report windows
+
+Hourly fetches retain timestamped transitions under `raw/history/`. `bun run changes` reports changes since the last reviewed report; each transition remains visible even if a later fetch reverses it. Fetching and printing a report do not advance the review cursor.
+
+Choose a start time with an explicit timezone:
+
+```sh
+bun run changes --since '2026-10-06T12:00:00+08:00'
+bun run changes --since '2026-10-06T12:00:00+08:00' --through '2026-10-10T08:00:00Z'
+```
+
+Explicit windows include both endpoints. Times are observation times: hourly collection cannot determine the exact moment a change happened between fetches. Resource identifiers, source URLs, before/after snapshots, hashes, coverage notes and warnings remain in the retained fetch records. Reports use the coverage recorded at their selected end. A failed fetch retains successfully recorded course transitions and identifies its incomplete coverage.
+
+After reading the complete report, acknowledge its exact end timestamp:
+
+```sh
+bun run changes --reviewed --through '<report-end-timestamp>'
+```
+
+Acknowledgement refuses if a newer collection has been recorded. It advances a separate cursor without deleting history, so explicit historical reports remain repeatable. Existing unreviewed differences survive migration with their original snapshots but without invented event timestamps. Requests before retained history begins fail explicitly; a new course's first fetch is a baseline, not reconstructed history. Offline vault generation does not change history or the review cursor.

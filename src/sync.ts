@@ -16,8 +16,9 @@ import {
   sanitizeCanvasSecrets,
 } from "./archive-helpers.ts";
 import { canvasDownload, canvasError, canvasJson, collectApiResource, collectResource } from "./canvas-client.ts";
-import { classifyWarnings, mergePending, pendingFromRun, renderReport } from "./changes.ts";
+import { classifyWarnings, pendingFromRun, renderReport } from "./changes.ts";
 import { loadConfig, parseOptions } from "./config.ts";
+import { historyReport, readHistory, recordHistory, reviewHistory } from "./history.ts";
 import {
   atomicWrite,
   canvasDate,
@@ -788,7 +789,12 @@ async function readDocuments(courseDirectory: string): Promise<Map<string, Archi
   return new Map(documents.map((document) => [document.document_id, document]));
 }
 
-async function archiveCourse(config: ArchiveConfig, data: CourseData, options: SyncOptions): Promise<ArchiveResult> {
+async function archiveCourse(
+  config: ArchiveConfig,
+  data: CourseData,
+  options: SyncOptions,
+  checkpoint: (result: ArchiveResult) => Promise<void>,
+): Promise<ArchiveResult> {
   const code = data.configuredCourse.code;
   const courseDirectory = path.join(config.rawDirectory, code);
   await mkdir(courseDirectory, { recursive: true });
@@ -800,18 +806,12 @@ async function archiveCourse(config: ArchiveConfig, data: CourseData, options: S
   const previousDocuments = await readDocuments(courseDirectory);
   const documents = await buildDocuments(data, courseDirectory, fileEntries);
   const jsonl = documents.map((document) => stableJson(document, 0)).join("\n");
-  await atomicWrite(path.join(courseDirectory, "documents.jsonl"), `${jsonl}${jsonl ? "\n" : ""}`);
 
   const currentState = stateFromDocuments(documents);
   const incompleteKinds = incompleteDocumentKinds(data.warnings);
   const state = preserveIncompleteState(previousState, currentState, incompleteKinds);
   const changes = compareStates(previousState, state, incompleteKinds);
-  for (const change of changes.filter((change) => change.action === "removed")) {
-    await unlinkArchivedPath(courseDirectory, previousState[change.document_id]?.local_path);
-  }
-  await cleanupGeneratedDocuments(courseDirectory, documents, incompleteKinds);
-  await writeJson(statePath, state);
-  return {
+  const result = {
     code,
     data,
     documents,
@@ -820,6 +820,15 @@ async function archiveCourse(config: ArchiveConfig, data: CourseData, options: S
     changes,
     baseline: Object.keys(previousState).length === 0,
   };
+  // Retain transitions before replacing the baseline, even if a later course or vault write fails.
+  await checkpoint(result);
+  await atomicWrite(path.join(courseDirectory, "documents.jsonl"), `${jsonl}${jsonl ? "\n" : ""}`);
+  for (const change of changes.filter((change) => change.action === "removed")) {
+    await unlinkArchivedPath(courseDirectory, previousState[change.document_id]?.local_path);
+  }
+  await cleanupGeneratedDocuments(courseDirectory, documents, incompleteKinds);
+  await writeJson(statePath, state);
+  return result;
 }
 
 interface ArchivedCourse extends VaultCourse {
@@ -907,61 +916,105 @@ function report(config: ArchiveConfig, pending: PendingChanges, courses: Archive
 
 async function fetchCanvas(config: ArchiveConfig, argv: string[]): Promise<void> {
   const options = parseOptions(config, argv);
-  const syncedAt = new Date().toISOString();
-  const results: ArchiveResult[] = [];
+  const legacy = await readPending(config);
   await mkdir(config.rawDirectory, { recursive: true });
   for (const course of options.courses) {
     console.error(`[${course.code}] collecting Canvas metadata`);
     const data = await collectCourse(config, course);
     console.error(`[${course.code}] downloading/indexing ${data.files.length} files`);
-    results.push(await archiveCourse(config, data, options));
+    await archiveCourse(config, data, options, async (result) => {
+      const plan = planVault({ ...result, rawDirectory: path.join(config.rawDirectory, result.code) }, config.timezone);
+      const observed = new Date().toISOString();
+      await recordHistory(config.rawDirectory, legacy, {
+        since: null,
+        last_sync: observed,
+        first_syncs: result.baseline ? [result.code] : [],
+        changes: result.baseline
+          ? []
+          : pendingFromRun(
+              result.changes,
+              result.previous,
+              new Map(result.documents.map((document) => [document.document_id, document])),
+              (id, metadata) => vaultPathForDocument(plan, id, metadata),
+            ).map((change) => ({ ...change, observed_at: observed })),
+        courses: [
+          { code: result.code, name: result.data.configuredCourse.name, coverage: classifyWarnings(result.data) },
+        ],
+      });
+    });
   }
   const courses = await loadArchive(config);
-  const plans = await buildVault(config, courses, syncedAt);
+  const syncedAt = new Date().toISOString();
+  await buildVault(config, courses, syncedAt);
 
-  const pending = await readPending(config);
-  const incoming = results
-    .filter((result) => !result.baseline)
-    .flatMap((result) =>
-      pendingFromRun(
-        result.changes,
-        result.previous,
-        new Map(result.documents.map((document) => [document.document_id, document])),
-        (documentId, metadata) => {
-          const plan = plans.get(result.code);
-          return plan ? vaultPathForDocument(plan, documentId, metadata) : "";
-        },
-      ),
-    );
-  const next: PendingChanges = {
-    since: pending.since,
+  await recordHistory(config.rawDirectory, legacy, {
+    since: null,
     last_sync: syncedAt,
-    first_syncs: [
-      ...new Set([...pending.first_syncs, ...results.filter((result) => result.baseline).map((result) => result.code)]),
-    ],
-    changes: mergePending(pending.changes, incoming, config.timezone),
+    completed: true,
+    first_syncs: [],
+    changes: [],
+    courses: courses.map((course) => ({
+      code: course.data.configuredCourse.code,
+      name: course.data.configuredCourse.name,
+      coverage: classifyWarnings(course.data),
+    })),
+  });
+  const history = await readHistory(config.rawDirectory);
+  if (!history) throw new Error("Fetch history was not recorded");
+  const selected = historyReport(history);
+  const next: PendingChanges = {
+    since: selected.since,
+    last_sync: selected.last_sync,
+    first_syncs: selected.first_syncs,
+    changes: selected.changes,
   };
   await writeJson(pendingPath(config), next);
   console.log(report(config, next, courses));
 }
 
 async function changes(config: ArchiveConfig, argv: string[]): Promise<void> {
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === "--reviewed") continue;
+    if (["--since", "--through"].includes(argv[i] ?? "") && argv[i + 1] && !argv[i + 1]?.startsWith("--")) {
+      i += 1;
+      continue;
+    }
+    throw new Error(`Unknown or incomplete report option: ${argv[i]}`);
+  }
+  const since = argv.includes("--since") ? argv[argv.indexOf("--since") + 1] : undefined;
+  const through = argv.includes("--through") ? argv[argv.indexOf("--through") + 1] : undefined;
+  const history = await readHistory(config.rawDirectory);
   const pending = await readPending(config);
   if (argv.includes("--reviewed")) {
-    // The scheduled fetch can add changes after a report was shown; only those shown may be marked reviewed.
-    const through = argv.indexOf("--through");
-    if (through >= 0 && argv[through + 1] !== pending.last_sync)
+    if (!through) throw new Error("Marking a report reviewed requires --through <last_sync>");
+    if (since) throw new Error("--since selects a report; acknowledge it separately with --reviewed --through");
+    if (history) await reviewHistory(config.rawDirectory, through);
+    else if (through !== pending.last_sync)
       throw new Error("Canvas was fetched after that report; reprint it with `bun run changes` first");
     await writeJson(pendingPath(config), {
-      since: new Date().toISOString(),
+      since: through,
       last_sync: pending.last_sync,
       first_syncs: [],
       changes: [],
     } satisfies PendingChanges);
-    console.log(`Marked ${pending.changes.length} changes as reviewed.`);
+    console.log(`Marked changes through ${through} as reviewed; retained history is unchanged.`);
     return;
   }
-  console.log(report(config, pending, await loadArchive(config)));
+  if (history) {
+    const selected = historyReport(history, since, through);
+    console.log(renderReport(selected, selected.courses, config.timezone));
+    if (!selected.completed)
+      console.log("The latest fetch did not complete; only recorded course collections are covered.");
+    if (!since && !history.reviewed_through && history.start.legacy.changes.length)
+      console.log(
+        "Legacy unreviewed changes are included without observation times; their individual history is unavailable.",
+      );
+  } else {
+    if (since || through)
+      throw new Error("Selectable reporting is unavailable until the first fetch records change history");
+    console.log(report(config, pending, await loadArchive(config)));
+    console.log("Only legacy unreviewed differences are available; timestamped change history has not started.");
+  }
 }
 
 async function tasks(config: ArchiveConfig): Promise<void> {

@@ -1,6 +1,6 @@
 # Agent instructions
 
-`nus-canvas-sync` fetches NUS Canvas, read-only, into the Obsidian vault in the vault directory (`vaultDirectory` in `config.json`) and reports every change since the user last reviewed one.
+`nus-canvas-sync` fetches NUS Canvas, read-only, into the Obsidian vault in the vault directory (`vaultDirectory` in `config.json`) and reports every change since the user last reviewed one, or from an explicitly requested start time.
 
 It runs on a Debian server: a systemd user timer runs `bun run fetch` on a schedule, and the vault can be served over WebDAV, optionally through a Cloudflare tunnel, for the Remotely Save plugin in Obsidian. Each part is toggled under `server` in `config.json`. Development checkouts may be on other machines; `systemctl --user is-active canvas-fetch.timer` prints `active` only on production. See [deploy/README.md](deploy/README.md) and [HANDOFF.md](HANDOFF.md).
 
@@ -32,7 +32,7 @@ Follow [STYLE.md](STYLE.md) strictly for every code change, and put future code-
 | `deploy/` | `setup.sh`, `teardown.sh` and the systemd user units for the server |
 | `config.json` | Courses, directories, timezone, limits, server toggles; gitignored, from `config.example.json` |
 | `known-content.json` | Canvas IDs to fetch directly when list endpoints are unavailable |
-| `raw/` | Generated machine data: API responses, `documents.jsonl`, manifests, `state.json`, `unseen-changes.json` |
+| `raw/` | Generated machine data: API responses, `documents.jsonl`, manifests, `state.json`, `unseen-changes.json`, `history/` (retained transitions and review cursor) |
 | Vault directory | Generated vault; must stay free of implementation details |
 
 `canvas` comes from canvas-cli's release installer (`deploy/setup.sh` puts it in `~/.local/bin`), not from this repository.

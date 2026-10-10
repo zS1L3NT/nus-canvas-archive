@@ -317,6 +317,8 @@ export interface ChangeSnapshot {
 }
 
 export interface PendingChange {
+  observed_at?: string;
+  source_url?: string;
   action: ChangeAction;
   document_id: string;
   course: string;

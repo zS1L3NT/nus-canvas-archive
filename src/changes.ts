@@ -50,6 +50,7 @@ export function pendingFromRun(
     const after = change.action === "removed" ? null : snapshot(current.get(change.document_id));
     return {
       action: change.action,
+      source_url: current.get(change.document_id)?.source_url ?? previous.state[change.document_id]?.source_url,
       document_id: change.document_id,
       course: change.document_id.split(":")[0] ?? "",
       kind: change.kind,
@@ -289,8 +290,9 @@ export function renderReport(
     "# Canvas changes",
     "",
     pending.since
-      ? `Unreviewed since ${displayDate(pending.since, timezone)} · last fetch ${displayDate(pending.last_sync, timezone)}`
+      ? `Changes since ${displayDate(pending.since, timezone)} · last fetch ${displayDate(pending.last_sync, timezone)}`
       : `Last fetch ${displayDate(pending.last_sync, timezone)}`,
+    `Report through: ${pending.last_sync ?? "unavailable"}`,
     "",
   ];
   const quiet: string[] = [];
@@ -321,7 +323,10 @@ export function renderReport(
       for (const change of matching) {
         const where = change.vault_path ? ` → \`${change.vault_path}\`` : "";
         const detail = action === "added" ? addedDetail(change, timezone) : "";
-        lines.push(`- ${kindLabels[change.kind] ?? change.kind} **${change.title.trim()}**${detail}${where}`);
+        const observed = change.observed_at ? ` · observed ${displayDate(change.observed_at, timezone)}` : "";
+        lines.push(
+          `- ${kindLabels[change.kind] ?? change.kind} **${change.title.trim()}**${detail}${observed}${where}`,
+        );
         if (action === "added" && ["announcement", "inbox"].includes(change.kind) && change.after?.content)
           lines.push(`  > ${excerpt(change.after.content)}`);
         if (action !== "modified") continue;
