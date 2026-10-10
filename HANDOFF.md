@@ -23,7 +23,7 @@ Decisions the user made:
 - `bun run changes --reviewed --through <last_sync>` refuses when a fetch ran after the report was shown, so a scheduled fetch cannot cause unseen changes to be marked reviewed. The skill always passes `--through`; acknowledgement requires that exact report endpoint. Retained timestamped history and the separate review cursor are implemented on `ai/report-history`. The first fetch after deployment starts fresh baselines without importing old pending differences. Explicit dates use saved Canvas update times, falling back to detection time where unavailable; default reports include all newly detected transitions.
 - `config.json` is untracked. `loadConfig` tells you to copy `config.example.json` when it is missing, and `deploy/setup.sh` does that copy itself. `vaultDirectory` defaults to `./vault` (gitignored), so every checkout has its own vault next to its own `raw/`.
 - `src/vault.ts` already used `COPYFILE_FICLONE`, which falls back to a plain copy on filesystems without clones; only the comment and README changed.
-- The skill moved to `.claude/skills/canvas-report/SKILL.md`. Report links use `obsidian://open?vault=Canvas&file=...`, because absolute server paths do not open on a phone.
+- The shared skill lives at `.agents/skills/canvas-report/SKILL.md`; `.claude/skills/canvas-report` is a relative symlink to it. Codex/T3 Code can invoke `$canvas-report`, and Claude Code keeps `/canvas-report`. Report links use `obsidian://open?vault=Canvas&file=...`, because absolute server paths do not open on a phone.
 - `deploy/` is new:
   - `setup.sh` and `teardown.sh`
   - systemd user unit templates, where `@REPO@`, `@VAULT@`, `@SCHEDULE@` and `@PORT@` are filled in by the script

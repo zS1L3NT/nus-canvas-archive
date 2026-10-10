@@ -6,13 +6,17 @@ It is meant to run on an always-on Debian server: a systemd timer fetches Canvas
 
 ## Daily use
 
-Open this folder on the server in Claude Code and ask for a **Canvas report**, or run `/canvas-report`. Claude will:
+Open the production checkout in your agent and ask for a **Canvas report**. In T3 Code with Codex, invoke `$canvas-report`; in Claude Code, run `/canvas-report`. The agent will:
 
 1. perform a fresh, read-only fetch, then show you every change since your last completed report or your explicitly requested start time: new and edited announcements, assignments, quizzes, pages, files and messages, with date changes and line diffs;
 2. reconcile your Notion Task Tracker and the NUS Exams calendar;
 3. mark the changes as reviewed.
 
 Every requested report begins with a fresh fetch. Hourly scheduled fetches keep the Obsidian vault current between reports. Fetching never advances the report cursor; recorded changes remain available until and after review.
+
+The shared skill lives in [.agents/skills/canvas-report/SKILL.md](.agents/skills/canvas-report/SKILL.md), which Codex discovers in this repository. Claude Code uses a relative symlink to the same skill under `.claude/skills`, so both agents follow one maintained workflow. If Codex does not show the skill after updating the checkout, restart the agent session. Agents without skill discovery can read that file directly.
+
+Reports need shell access to the production checkout and its archive; a development worktree does not contain the production data. Connect Notion and Google Calendar in the agent you use for the audit. Claude account connectors are not automatically available to Codex or T3 Code.
 
 ## The vault
 

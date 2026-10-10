@@ -7,6 +7,10 @@ description: Show every Canvas change since the user last reviewed one, as fetch
 
 Canvas is read-only. The project does the Canvas work deterministically, and on the production server a systemd timer runs `bun run fetch` on a schedule; your job is to present the changes and keep Notion and the exam calendar accurate.
 
+## Agent access
+
+Use shell access to the production checkout for all project commands, even when the agent session starts in a development worktree. Read that checkout's `AGENTS.md` first. Use the Notion and Google Calendar tools available in the current agent; do not assume Claude account connectors are available elsewhere. If a required integration is unavailable, show the Canvas changes and state which audit checks could not be performed. Do not claim those checks passed or that external updates were made.
+
 ## 1. Report
 
 Run this from the production checkout, where `systemctl --user is-active canvas-fetch.timer` prints `active`; a development checkout has its own, usually empty, `raw/`.
