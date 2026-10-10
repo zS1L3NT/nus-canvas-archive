@@ -18,7 +18,7 @@ import {
 import { canvasDownload, canvasError, canvasJson, collectApiResource, collectResource } from "./canvas-client.ts";
 import { classifyWarnings, pendingFromRun, renderReport } from "./changes.ts";
 import { loadConfig, parseOptions } from "./config.ts";
-import { historyReport, readHistory, recordHistory, reviewHistory } from "./history.ts";
+import { historyReport, readHistory, recordHistory, reviewHistory, startHistory } from "./history.ts";
 import {
   atomicWrite,
   canvasDate,
@@ -608,7 +608,7 @@ async function buildDocuments(
     await atomicWrite(
       path.join(courseDirectory, localPath),
       `# ${announcement.title}\n\n${content}`,
-      announcement.posted_at,
+      announcement.updated_at || announcement.posted_at,
     );
     documents.push(
       documentRecord({
@@ -617,7 +617,7 @@ async function buildDocuments(
         course: code,
         title: announcement.title,
         sourceUrl: announcement.html_url,
-        updatedAt: announcement.posted_at,
+        updatedAt: announcement.updated_at || announcement.posted_at,
         localPath,
         metadata: { posted_at: announcement.posted_at, published: announcement.published },
         content,
@@ -916,8 +916,9 @@ function report(config: ArchiveConfig, pending: PendingChanges, courses: Archive
 
 async function fetchCanvas(config: ArchiveConfig, argv: string[]): Promise<void> {
   const options = parseOptions(config, argv);
-  const legacy = await readPending(config);
-  await mkdir(config.rawDirectory, { recursive: true });
+  const existing = await readHistory(config.rawDirectory);
+  const baselines = new Set(existing?.runs.flatMap((run) => run.first_syncs) ?? []);
+  await startHistory(config.rawDirectory, new Date().toISOString());
   for (const course of options.courses) {
     console.error(`[${course.code}] collecting Canvas metadata`);
     const data = await collectCourse(config, course);
@@ -925,11 +926,12 @@ async function fetchCanvas(config: ArchiveConfig, argv: string[]): Promise<void>
     await archiveCourse(config, data, options, async (result) => {
       const plan = planVault({ ...result, rawDirectory: path.join(config.rawDirectory, result.code) }, config.timezone);
       const observed = new Date().toISOString();
-      await recordHistory(config.rawDirectory, legacy, {
+      const baseline = result.baseline || !baselines.has(result.code);
+      await recordHistory(config.rawDirectory, {
         since: null,
         last_sync: observed,
-        first_syncs: result.baseline ? [result.code] : [],
-        changes: result.baseline
+        first_syncs: baseline ? [result.code] : [],
+        changes: baseline
           ? []
           : pendingFromRun(
               result.changes,
@@ -947,7 +949,7 @@ async function fetchCanvas(config: ArchiveConfig, argv: string[]): Promise<void>
   const syncedAt = new Date().toISOString();
   await buildVault(config, courses, syncedAt);
 
-  await recordHistory(config.rawDirectory, legacy, {
+  await recordHistory(config.rawDirectory, {
     since: null,
     last_sync: syncedAt,
     completed: true,
@@ -1005,10 +1007,6 @@ async function changes(config: ArchiveConfig, argv: string[]): Promise<void> {
     console.log(renderReport(selected, selected.courses, config.timezone));
     if (!selected.completed)
       console.log("The latest fetch did not complete; only recorded course collections are covered.");
-    if (!since && !history.reviewed_through && history.start.legacy.changes.length)
-      console.log(
-        "Legacy unreviewed changes are included without observation times; their individual history is unavailable.",
-      );
   } else {
     if (since || through)
       throw new Error("Selectable reporting is unavailable until the first fetch records change history");

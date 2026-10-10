@@ -126,6 +126,7 @@ export interface CanvasAnnouncement {
   message?: string;
   html_url?: string;
   posted_at?: string;
+  updated_at?: string;
   published?: boolean;
 }
 
@@ -310,6 +311,7 @@ export interface ArchiveResult {
 }
 
 export interface ChangeSnapshot {
+  updated_at?: string;
   title: string;
   metadata: Record<string, unknown>;
   content: string | null;

@@ -1,6 +1,6 @@
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import type { CourseCoverage } from "./changes.ts";
+import { type CourseCoverage, changeTime } from "./changes.ts";
 import { writeJson } from "./lib.ts";
 import type { PendingChanges } from "./types.ts";
 
@@ -11,7 +11,6 @@ export interface HistoryRun extends PendingChanges {
 
 interface HistoryStart {
   started_at: string;
-  legacy: PendingChanges;
 }
 
 export interface History {
@@ -59,20 +58,23 @@ export async function readHistory(raw: string): Promise<History | null> {
   };
 }
 
-export async function recordHistory(raw: string, legacy: PendingChanges, run: HistoryRun): Promise<void> {
+export async function startHistory(raw: string, startedAt: string): Promise<void> {
   const directory = path.join(raw, "history");
   await mkdir(directory, { recursive: true });
   if (!(await read<HistoryStart>(path.join(directory, "start.json"))))
-    await writeJson(path.join(directory, "start.json"), {
-      started_at: legacy.last_sync ?? run.last_sync,
-      legacy,
-    });
+    await writeJson(path.join(directory, "start.json"), { started_at: reportTime(startedAt) });
+}
+
+export async function recordHistory(raw: string, run: HistoryRun): Promise<void> {
+  if (!run.last_sync) throw new Error("A history record requires a fetch timestamp");
+  await startHistory(raw, run.last_sync);
+  const directory = path.join(raw, "history");
   const suffix = run.completed ? "~complete" : `-${encodeURIComponent(run.courses[0]?.code ?? "course")}`;
   await writeJson(path.join(directory, `fetch-${run.last_sync?.replaceAll(":", "-")}${suffix}.json`), run);
 }
 
 export function historyReport(history: History, since?: string, through?: string): HistoryRun {
-  const last = history.runs.at(-1)?.last_sync ?? history.start.legacy.last_sync;
+  const last = history.runs.at(-1)?.last_sync;
   const end = through ? reportTime(through) : last;
   if (!end) throw new Error("No completed fetch is available to report");
   const start = since ? reportTime(since) : (history.reviewed_through ?? history.start.started_at);
@@ -82,20 +84,27 @@ export function historyReport(history: History, since?: string, through?: string
     );
   if (start > end) throw new Error("Report start is after its end");
   if (last && end > last) throw new Error(`Report end is after the last completed fetch (${last})`);
-  const inclusive = Boolean(since) || (!history.reviewed_through && !history.start.legacy.last_sync);
+  const inclusive = Boolean(since) || !history.reviewed_through;
   const runs = history.runs.filter(
     (run) => run.last_sync && (inclusive ? run.last_sync >= start : run.last_sync > start) && run.last_sync <= end,
   );
-  const legacy = !since && !history.reviewed_through ? history.start.legacy : null;
   const courses = new Map<string, HistoryRun["courses"][number]>();
   for (const run of history.runs.filter((run) => run.last_sync && run.last_sync <= end))
     for (const course of run.courses) courses.set(course.code, course);
   return {
     completed: history.runs.filter((run) => run.last_sync && run.last_sync <= end).at(-1)?.completed ?? false,
-    since: legacy?.since ?? start,
+    since: start,
     last_sync: end,
-    first_syncs: [...new Set([...(legacy?.first_syncs ?? []), ...runs.flatMap((run) => run.first_syncs)])],
-    changes: [...(legacy?.changes ?? []), ...runs.flatMap((run) => run.changes)],
+    first_syncs: [...new Set(runs.flatMap((run) => run.first_syncs))],
+    changes: since
+      ? history.runs
+          .filter((run) => run.last_sync && run.last_sync <= end)
+          .flatMap((run) => run.changes)
+          .filter((change) => {
+            const time = changeTime(change);
+            return time && time >= start && time <= end;
+          })
+      : runs.flatMap((run) => run.changes),
     courses: [...courses.values()],
   };
 }

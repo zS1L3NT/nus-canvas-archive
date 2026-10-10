@@ -78,7 +78,7 @@ bun run changes --since '2026-10-06T12:00:00+08:00'
 bun run changes --since '2026-10-06T12:00:00+08:00' --through '2026-10-10T08:00:00Z'
 ```
 
-Explicit windows include both endpoints. Times are observation times: hourly collection cannot determine the exact moment a change happened between fetches. Resource identifiers, source URLs, before/after snapshots, hashes, coverage notes and warnings remain in the retained fetch records. Reports use the coverage recorded at their selected end. A failed fetch retains successfully recorded course transitions and identifies its incomplete coverage.
+Explicit windows include both endpoints and use the Canvas update time saved with each transition. Removals and changes without a usable or changed Canvas timestamp use detection time. Default reports use detection time so late discoveries are not lost after review. A historical endpoint includes only data collected by that endpoint. Resource identifiers, source URLs, before/after snapshots, hashes, coverage notes and warnings remain in the retained fetch records. Reports use the coverage recorded at their selected end. A failed fetch retains successfully recorded course transitions and identifies its incomplete coverage.
 
 After reading the complete report, acknowledge its exact end timestamp:
 
@@ -86,4 +86,4 @@ After reading the complete report, acknowledge its exact end timestamp:
 bun run changes --reviewed --through '<report-end-timestamp>'
 ```
 
-Acknowledgement refuses if a newer collection has been recorded. It advances a separate cursor without deleting history, so explicit historical reports remain repeatable. Existing unreviewed differences survive migration with their original snapshots but without invented event timestamps. Requests before retained history begins fail explicitly; a new course's first fetch is a baseline, not reconstructed history. Offline vault generation does not change history or the review cursor.
+Acknowledgement refuses if a newer collection has been recorded. It advances a separate cursor without deleting history, so explicit historical reports remain repeatable. History starts fresh with the first fetch after deployment: existing course archives establish baselines, and old pending differences are not imported. Requests before retained history begins fail explicitly; a new course's first fetch is a baseline, not reconstructed history. Offline vault generation does not change history or the review cursor.
