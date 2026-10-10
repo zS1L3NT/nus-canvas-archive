@@ -9,7 +9,7 @@ The project used to run only on the user's Mac. `/canvas-update` synced Canvas o
 Decisions the user made:
 
 - **Only the deterministic fetch runs on a schedule.** A systemd user timer runs `bun run fetch`. No AI runs in the background, and nothing touches Notion or Google Calendar unattended.
-- **The report runs on demand.** `/canvas-report` replaces `/canvas-update`. It shows every change since the user last reviewed a report, then runs the original canvas-to-Notion workflow unchanged, with the same standing permissions: matched task page bodies may be rewritten, while date writes, new tasks and calendar writes still need per-report approval. It does not fetch first unless asked.
+- **The report runs on demand.** `/canvas-report` replaces `/canvas-update`. It shows every change since the user last reviewed a report, then runs the original canvas-to-Notion workflow unchanged, with the same standing permissions: matched task page bodies may be rewritten, while date writes, new tasks and calendar writes still need per-report approval. Every report request starts with a locked, fresh, read-only fetch; scheduled fetches keep the vault current between reports.
 - **The vault is served from the server.** There is no paid Obsidian Sync and no cloud drive. `rclone serve webdav` listens on localhost, a Cloudflare tunnel can publish it, and the Remotely Save community plugin syncs the user's devices on startup and on a schedule. Each device's vault is named `Canvas`.
   - The user wants the address public rather than behind a VPN, so with the tunnel on, WebDAV basic auth over HTTPS is the only protection.
   - Remotely Save's own encryption is unusable because the server writes plain files.

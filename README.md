@@ -8,11 +8,11 @@ It is meant to run on an always-on Debian server: a systemd timer fetches Canvas
 
 Open this folder on the server in Claude Code and ask for a **Canvas report**, or run `/canvas-report`. Claude will:
 
-1. show you every change since your last report: new and edited announcements, assignments, quizzes, pages, files and messages, with date changes and line diffs;
+1. perform a fresh, read-only fetch, then show you every change since your last completed report or your explicitly requested start time: new and edited announcements, assignments, quizzes, pages, files and messages, with date changes and line diffs;
 2. reconcile your Notion Task Tracker and the NUS Exams calendar;
 3. mark the changes as reviewed.
 
-The report uses the latest scheduled fetch; ask for a fresh fetch if you need one. Changes accumulate until you review them, so nothing fetched between reports is lost.
+Every requested report begins with a fresh fetch. Hourly scheduled fetches keep the Obsidian vault current between reports. Fetching never advances the report cursor; recorded changes remain available until and after review.
 
 ## The vault
 
@@ -43,7 +43,7 @@ bun run fetch                   # read Canvas, update raw/ and the vault, print 
 bun run fetch --course CS2030S  # one course
 bun run fetch --metadata-only   # skip file downloads
 bun run changes                 # reprint unseen changes without contacting Canvas
-bun run changes --reviewed      # mark them reviewed
+bun run changes --reviewed --through '<report-end-timestamp>' # acknowledge the report
 bun run tasks                   # JSON of every assignment and quiz with Singapore-time dates
 bun run vault                   # rebuild the vault from raw/ without contacting Canvas
 bun run doctor
@@ -69,7 +69,7 @@ bun run doctor
 
 ## Report windows
 
-Hourly fetches retain timestamped transitions under `raw/history/`. `bun run changes` reports changes since the last reviewed report; each transition remains visible even if a later fetch reverses it. Fetching and printing a report do not advance the review cursor.
+Scheduled and report-triggered fetches retain timestamped transitions under `raw/history/`. `bun run changes` reports changes since the last reviewed report; each transition remains visible even if a later fetch reverses it. Fetching and printing a report do not advance the review cursor.
 
 Choose a start time with an explicit timezone:
 

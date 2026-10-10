@@ -11,7 +11,7 @@ Canvas is read-only. The project does the Canvas work deterministically, and on 
 
 Run this from the production checkout, where `systemctl --user is-active canvas-fetch.timer` prints `active`; a development checkout has its own, usually empty, `raw/`.
 
-Do not fetch first unless the user asks for a fresh fetch; the scheduled fetch keeps the archive recent. When they do, run `flock raw/.fetch.lock bun run fetch`, which waits for any running scheduled fetch. It has standing authorization; do not ask first.
+Every report request starts with a fresh, read-only fetch: run `flock raw/.fetch.lock bun run fetch`, which waits for any running scheduled fetch. This has standing authorization; do not ask first. Hourly scheduled fetches keep the Obsidian vault current between reports. The requested start time selects the history window; the fresh fetch supplies the current endpoint. Do not acknowledge a report if this refresh fails; state the failure and clearly label any report of previously collected data.
 
 Run `bun run changes` for every recorded transition since the last reviewed report. If the user supplies a start time, use `bun run changes --since <ISO-8601 timestamp with timezone>`; interpret an unqualified local time in Singapore time. For example, 6 October 2026 at noon is `2026-10-06T12:00:00+08:00`. Explicit start times are inclusive. An optional `--through <timestamp>` selects an earlier end; the end is inclusive. The default review cursor is exclusive, so already reviewed events are not repeated.
 
